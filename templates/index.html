@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot İdarəetmə Paneli</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #222; color: #fff; margin: 0; padding: 20px; }
+        h1 { color: #00ff00; }
+        .video { margin: 20px auto; max-width: 640px; border: 5px solid #00ff00; border-radius: 10px; }
+        .controls { margin: 20px; }
+        button { 
+            font-size: 24px; padding: 20px 40px; margin: 10px; 
+            background: #00ff00; color: black; border: none; border-radius: 10px; 
+            cursor: pointer; width: 120px;
+        }
+        button:active { background: #00cc00; }
+        #status { margin-top: 20px; font-size: 18px; color: yellow; }
+    </style>
+</head>
+<body>
+    <h1>Robot Canlı Yayım və İdarəetmə</h1>
+    <img src="{{ url_for('video_feed') }}" class="video" alt="Canlı yayım">
+    
+    <div class="controls">
+        <button onmousedown="sendCmd('forward')" onmouseup="sendCmd('stop')" ontouchstart="sendCmd('forward')" ontouchend="sendCmd('stop')">İrəli</button><br>
+        <button onmousedown="sendCmd('left')" onmouseup="sendCmd('stop')" ontouchstart="sendCmd('left')" ontouchend="sendCmd('stop')">Sol</button>
+        <button onmousedown="sendCmd('stop')" ontouchstart="sendCmd('stop')">Dayan</button>
+        <button onmousedown="sendCmd('right')" onmouseup="sendCmd('stop')" ontouchstart="sendCmd('right')" ontouchend="sendCmd('stop')">Sağ</button><br>
+        <button onmousedown="sendCmd('backward')" onmouseup="sendCmd('stop')" ontouchstart="sendCmd('backward')" ontouchend="sendCmd('stop')">Geri</button>
+    </div>
+
+    <div id="status">Bağlantı qurulur...</div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('connect', () => {
+            document.getElementById('status').innerText = 'Bağlandı ✓';
+        });
+
+        socket.on('status_update', (data) => {
+            document.getElementById('status').innerText = data.message;
+        });
+
+        function sendCmd(cmd) {
+            socket.emit('robot_command', { command: cmd });
+        }
+
+        // Klavye ilə də idarə etmək istəsən:
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') sendCmd('forward');
+            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') sendCmd('backward');
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') sendCmd('left');
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') sendCmd('right');
+            if (e.key === ' ') sendCmd('stop');
+        });
+
+        document.addEventListener('keyup', () => {
+            sendCmd('stop');
+        });
+    </script>
+</body>
+</html>
