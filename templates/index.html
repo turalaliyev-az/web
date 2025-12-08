@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="az">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +11,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #0f0f0f;
@@ -19,7 +20,7 @@
             padding: 20px;
             min-height: 100vh;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -27,13 +28,13 @@
             grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
-        
+
         @media (max-width: 768px) {
             .container {
                 grid-template-columns: 1fr;
             }
         }
-        
+
         .header {
             grid-column: 1 / -1;
             text-align: center;
@@ -41,19 +42,19 @@
             padding-bottom: 20px;
             border-bottom: 2px solid #00ff00;
         }
-        
+
         h1 {
             color: #00ff00;
             font-size: 2.5rem;
             margin-bottom: 10px;
             text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
         }
-        
+
         .subtitle {
             color: #aaaaaa;
             font-size: 1rem;
         }
-        
+
         /* VIDEO SECTION */
         .video-section {
             background: #1a1a1a;
@@ -62,7 +63,7 @@
             border: 2px solid #333;
             position: relative;
         }
-        
+
         .video-container {
             width: 100%;
             height: 300px;
@@ -71,20 +72,20 @@
             overflow: hidden;
             margin-bottom: 10px;
         }
-        
+
         .video-feed {
             width: 100%;
             height: 100%;
             object-fit: contain;
         }
-        
+
         .video-info {
             display: flex;
             justify-content: space-between;
             font-size: 0.9rem;
             color: #888;
         }
-        
+
         /* CONTROLS SECTION */
         .controls-section {
             background: #1a1a1a;
@@ -92,15 +93,17 @@
             padding: 20px;
             border: 2px solid #333;
         }
-        
+
         .control-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
             gap: 15px;
             margin-bottom: 20px;
+            max-width: 400px;
+            margin: 0 auto 20px auto;
         }
-        
+
         .control-btn {
             background: linear-gradient(145deg, #222, #111);
             border: 2px solid #00aa00;
@@ -119,17 +122,17 @@
             position: relative;
             min-height: 100px;
         }
-        
+
         .control-btn:hover {
             background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
             border-color: #00ff00;
         }
-        
+
         .control-btn:active {
             transform: scale(0.95);
             background: linear-gradient(145deg, #00aa00, #008800);
         }
-        
+
         .btn-char {
             position: absolute;
             top: 10px;
@@ -145,20 +148,20 @@
             font-size: 0.9rem;
             font-weight: bold;
         }
-        
+
         .btn-stop {
             border-color: #ff3333;
             background: linear-gradient(145deg, #332222, #221111);
         }
-        
+
         .btn-stop:hover {
             border-color: #ff5555;
         }
-        
+
         .btn-stop:active {
             background: linear-gradient(145deg, #ff3333, #cc0000);
         }
-        
+
         /* SERIAL CONTROL PANEL */
         .serial-panel {
             background: #1a1a1a;
@@ -168,14 +171,14 @@
             margin-top: 20px;
             grid-column: 1 / -1;
         }
-        
+
         .serial-controls {
             display: flex;
             gap: 10px;
             margin-bottom: 15px;
             flex-wrap: wrap;
         }
-        
+
         .serial-btn {
             padding: 10px 20px;
             background: #333;
@@ -185,22 +188,22 @@
             cursor: pointer;
             transition: all 0.3s;
         }
-        
+
         .serial-btn:hover {
             background: #444;
             border-color: #00ff00;
         }
-        
+
         .serial-btn.connected {
             background: #006600;
             border-color: #00ff00;
         }
-        
+
         .serial-btn.disconnected {
             background: #660000;
             border-color: #ff3333;
         }
-        
+
         /* STATUS PANEL */
         .status-panel {
             background: #1a1a1a;
@@ -210,34 +213,34 @@
             margin-top: 20px;
             grid-column: 1 / -1;
         }
-        
+
         .status-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
         }
-        
+
         @media (max-width: 768px) {
             .status-grid {
                 grid-template-columns: 1fr;
             }
         }
-        
+
         .status-item {
             background: #222;
             padding: 15px;
             border-radius: 8px;
             border-left: 4px solid #00ff00;
         }
-        
+
         .status-item.error {
             border-left-color: #ff3333;
         }
-        
+
         .status-item.warning {
             border-left-color: #ffaa00;
         }
-        
+
         .status-title {
             font-size: 0.9rem;
             color: #888;
@@ -246,41 +249,48 @@
             align-items: center;
             gap: 8px;
         }
-        
+
         .status-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
             display: inline-block;
         }
-        
+
         .status-dot.online {
             background: #00ff00;
             box-shadow: 0 0 10px #00ff00;
             animation: pulse 2s infinite;
         }
-        
+
         .status-dot.offline {
             background: #ff3333;
         }
-        
+
         .status-dot.connecting {
             background: #ffaa00;
             animation: pulse 1s infinite;
         }
-        
+
         .status-value {
             font-size: 1.2rem;
             font-weight: bold;
             color: #ffffff;
             font-family: monospace;
         }
-        
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
-        
+
         /* COMMAND LOG */
         .command-log {
             margin-top: 20px;
@@ -290,7 +300,7 @@
             max-height: 200px;
             overflow-y: auto;
         }
-        
+
         .log-title {
             color: #00ff00;
             margin-bottom: 10px;
@@ -299,12 +309,12 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .log-items {
             font-family: monospace;
             font-size: 0.9rem;
         }
-        
+
         .log-item {
             padding: 8px 10px;
             margin: 5px 0;
@@ -312,28 +322,28 @@
             border-radius: 4px;
             border-left: 3px solid #00ff00;
         }
-        
+
         .log-item.error {
             background: rgba(255, 0, 0, 0.1);
             border-left-color: #ff3333;
         }
-        
+
         .log-item.warning {
             background: rgba(255, 170, 0, 0.1);
             border-left-color: #ffaa00;
         }
-        
+
         .log-item.serial {
             background: rgba(0, 170, 255, 0.1);
             border-left-color: #00aaff;
         }
-        
+
         .log-time {
             color: #888;
             font-size: 0.8rem;
             margin-right: 10px;
         }
-        
+
         /* KEYBOARD HINT */
         .keyboard-hint {
             background: #222;
@@ -343,7 +353,7 @@
             text-align: center;
             color: #888;
         }
-        
+
         .key {
             display: inline-block;
             padding: 5px 10px;
@@ -354,7 +364,7 @@
             font-family: monospace;
             font-weight: bold;
         }
-        
+
         /* FOOTER */
         .footer {
             grid-column: 1 / -1;
@@ -367,6 +377,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <!-- HEADER -->
@@ -374,7 +385,7 @@
             <h1>🤖 Robot Kontrol Paneli</h1>
             <div class="subtitle">Gerçek zamanlı video akışı ve Arduino kontrolü</div>
         </div>
-        
+
         <!-- VIDEO SECTION -->
         <div class="video-section">
             <h2>🎥 Canlı Kamera</h2>
@@ -386,76 +397,101 @@
                 <span id="videoTime">--:--:--</span>
             </div>
         </div>
-        
+
         <!-- CONTROLS SECTION -->
         <div class="controls-section">
             <h2>🎮 Kontroller</h2>
-            
+
             <div class="control-grid">
+                <!-- İLERİ SOL -->
+                <div class="control-btn" onmousedown="startCommand('forward_left')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('forward_left')" ontouchend="stopCommand()">
+                    <div class="btn-char">Q</div>
+                    <span>İLERİ SOL</span>
+                    <small>Q</small>
+                </div>
+
                 <!-- İLERİ -->
-                <div class="control-btn" style="grid-column: 2;"
-                     onmousedown="sendCommand('forward')" 
-                     onmouseup="sendCommand('stop')"
-                     ontouchstart="sendCommand('forward')" 
-                     ontouchend="sendCommand('stop')">
+                <div class="control-btn" onmousedown="startCommand('forward')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('forward')" ontouchend="stopCommand()">
                     <div class="btn-char">W</div>
                     <span>İLERİ</span>
                     <small>W / ↑</small>
                 </div>
-                
+
+                <!-- İLERİ SAĞ -->
+                <div class="control-btn" onmousedown="startCommand('forward_right')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('forward_right')"
+                    ontouchend="stopCommand()">
+                    <div class="btn-char">E</div>
+                    <span>İLERİ SAĞ</span>
+                    <small>E</small>
+                </div>
+
                 <!-- SOL -->
-                <div class="control-btn"
-                     onmousedown="sendCommand('left')" 
-                     onmouseup="sendCommand('stop')"
-                     ontouchstart="sendCommand('left')" 
-                     ontouchend="sendCommand('stop')">
+                <div class="control-btn" onmousedown="startCommand('left')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('left')" ontouchend="stopCommand()">
                     <div class="btn-char">A</div>
                     <span>SOL</span>
                     <small>A / ←</small>
                 </div>
-                
+
                 <!-- DUR -->
-                <div class="control-btn btn-stop"
-                     onmousedown="sendCommand('stop')"
-                     ontouchstart="sendCommand('stop')">
+                <div class="control-btn btn-stop" onmousedown="stopCommand()" ontouchstart="stopCommand()">
                     <div class="btn-char" style="background: #ff3333;">Y</div>
                     <span>DUR</span>
                     <small>SPACE</small>
                 </div>
-                
+
                 <!-- SAĞ -->
-                <div class="control-btn"
-                     onmousedown="sendCommand('right')" 
-                     onmouseup="sendCommand('stop')"
-                     ontouchstart="sendCommand('right')" 
-                     ontouchend="sendCommand('stop')">
+                <div class="control-btn" onmousedown="startCommand('right')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('right')" ontouchend="stopCommand()">
                     <div class="btn-char">D</div>
                     <span>SAĞ</span>
                     <small>D / →</small>
                 </div>
-                
+
+                <!-- GERİ SOL -->
+                <div class="control-btn" onmousedown="startCommand('backward_left')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('backward_left')"
+                    ontouchend="stopCommand()">
+                    <div class="btn-char">Z</div>
+                    <span>GERİ SOL</span>
+                    <small>Z</small>
+                </div>
+
                 <!-- GERİ -->
-                <div class="control-btn" style="grid-column: 2;"
-                     onmousedown="sendCommand('backward')" 
-                     onmouseup="sendCommand('stop')"
-                     ontouchstart="sendCommand('backward')" 
-                     ontouchend="sendCommand('stop')">
+                <div class="control-btn" onmousedown="startCommand('backward')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('backward')" ontouchend="stopCommand()">
                     <div class="btn-char">S</div>
                     <span>GERİ</span>
                     <small>S / ↓</small>
                 </div>
+
+                <!-- GERİ SAĞ -->
+                <div class="control-btn" onmousedown="startCommand('backward_right')" onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" ontouchstart="startCommand('backward_right')"
+                    ontouchend="stopCommand()">
+                    <div class="btn-char">C</div>
+                    <span>GERİ SAĞ</span>
+                    <small>C</small>
+                </div>
             </div>
-            
+
             <div class="keyboard-hint">
                 <strong>Klavye Kontrolleri:</strong>
+                <span class="key">Q</span> = İleri Sol
                 <span class="key">W</span> veya <span class="key">↑</span> = İleri
-                <span class="key">S</span> veya <span class="key">↓</span> = Geri
+                <span class="key">E</span> = İleri Sağ<br>
                 <span class="key">A</span> veya <span class="key">←</span> = Sol
-                <span class="key">D</span> veya <span class="key">→</span> = Sağ
+                <span class="key">D</span> veya <span class="key">→</span> = Sağ<br>
+                <span class="key">Z</span> = Geri Sol
+                <span class="key">S</span> veya <span class="key">↓</span> = Geri
+                <span class="key">C</span> = Geri Sağ
                 <span class="key">SPACE</span> = Dur
             </div>
         </div>
-        
+
         <!-- SERIAL CONTROL PANEL -->
         <div class="serial-panel">
             <h2>🔌 Serial Port Kontrol</h2>
@@ -478,7 +514,7 @@
                 <p>Port: <span id="serialPort">-</span></p>
             </div>
         </div>
-        
+
         <!-- STATUS PANEL -->
         <div class="status-panel">
             <h2>📊 Sistem Durumu</h2>
@@ -490,7 +526,7 @@
                     </div>
                     <div class="status-value" id="wsStatus">Bağlanıyor...</div>
                 </div>
-                
+
                 <div class="status-item">
                     <div class="status-title">
                         <span class="status-dot" id="camDot"></span>
@@ -498,7 +534,7 @@
                     </div>
                     <div class="status-value" id="camStatus">Yükleniyor...</div>
                 </div>
-                
+
                 <div class="status-item">
                     <div class="status-title">
                         <span class="status-dot" id="serialDot"></span>
@@ -508,18 +544,19 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- COMMAND LOG -->
         <div class="command-log">
             <div class="log-title">
                 <span>📝 Komut Geçmişi</span>
-                <button onclick="clearLog()" style="background: #333; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Temizle</button>
+                <button onclick="clearLog()"
+                    style="background: #333; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Temizle</button>
             </div>
             <div class="log-items" id="commandLog">
                 <div class="log-item">Sistem başlatılıyor...</div>
             </div>
         </div>
-        
+
         <!-- FOOTER -->
         <div class="footer">
             <p>Robot Kontrol Paneli v2.0 • Arduino Serial Kontrol • Gerçek zamanlı</p>
@@ -531,7 +568,7 @@
     <script>
         // CSRF Token
         const csrfToken = "{{ csrf_token }}";
-        
+
         // Socket.io bağlantısı
         const socket = io({
             transports: ['websocket', 'polling'],
@@ -540,11 +577,13 @@
             reconnectionDelay: 1000,
             timeout: 5000
         });
-        
+
         // State
         let lastCommandTime = 0;
-        const MIN_COMMAND_DELAY = 100; // 100ms
-        
+        const MIN_COMMAND_DELAY = 200; // 200ms - Arduino'yu çok yormamak için
+        let commandInterval = null;
+        let currentCommand = null;
+
         // Elementler
         const wsDot = document.getElementById('wsDot');
         const wsStatus = document.getElementById('wsStatus');
@@ -560,63 +599,63 @@
         const testBtn = document.getElementById('testBtn');
         const commandLog = document.getElementById('commandLog');
         const videoTime = document.getElementById('videoTime');
-        
+
         // Zaman güncelleme
         function updateTime() {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
-                           now.getMinutes().toString().padStart(2, '0') + ':' +
-                           now.getSeconds().toString().padStart(2, '0');
+                now.getMinutes().toString().padStart(2, '0') + ':' +
+                now.getSeconds().toString().padStart(2, '0');
             videoTime.textContent = timeStr;
         }
         setInterval(updateTime, 1000);
         updateTime();
-        
+
         // Log ekleme
         function addLog(message, type = 'info') {
             const now = new Date();
             const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
-                           now.getMinutes().toString().padStart(2, '0') + ':' +
-                           now.getSeconds().toString().padStart(2, '0');
-            
+                now.getMinutes().toString().padStart(2, '0') + ':' +
+                now.getSeconds().toString().padStart(2, '0');
+
             const logItem = document.createElement('div');
             logItem.className = `log-item ${type}`;
             logItem.innerHTML = `<span class="log-time">[${timeStr}]</span> ${message}`;
-            
+
             commandLog.appendChild(logItem);
-            
+
             // Sadece son 20 mesajı tut
             while (commandLog.children.length > 20) {
                 commandLog.removeChild(commandLog.firstChild);
             }
-            
+
             // Otomatik scroll
             commandLog.scrollTop = commandLog.scrollHeight;
         }
-        
+
         // Log temizleme
         function clearLog() {
             commandLog.innerHTML = '';
             addLog('Log temizlendi', 'info');
         }
-        
+
         // Durum güncelleme
         function updateStatus(type, status, message) {
             const dot = document.getElementById(type + 'Dot');
             const statusEl = document.getElementById(type + 'Status');
-            
+
             if (dot) {
                 dot.className = 'status-dot';
                 if (status === 'online') dot.classList.add('online');
                 else if (status === 'offline') dot.classList.add('offline');
                 else if (status === 'connecting') dot.classList.add('connecting');
             }
-            
+
             if (statusEl) {
                 statusEl.textContent = message;
             }
         }
-        
+
         // Serial durumunu güncelle
         function updateSerialStatus(connected, port) {
             if (connected) {
@@ -624,7 +663,7 @@
                 serialStatusText.textContent = 'Bağlı';
                 serialState.textContent = 'Bağlı';
                 serialPort.textContent = port || 'Bilinmiyor';
-                
+
                 serialStatusBtn.className = 'serial-btn connected';
                 disconnectBtn.disabled = false;
                 testBtn.disabled = false;
@@ -633,27 +672,27 @@
                 serialStatusText.textContent = 'Bağlı değil';
                 serialState.textContent = 'Bağlı değil';
                 serialPort.textContent = '-';
-                
+
                 serialStatusBtn.className = 'serial-btn disconnected';
                 disconnectBtn.disabled = true;
                 testBtn.disabled = true;
             }
         }
-        
-        // Komut gönderme
-        function sendCommand(cmd) {
+
+        // Komut gönderme (tek seferlik)
+        function sendSingleCommand(cmd) {
             const now = Date.now();
             if (now - lastCommandTime < MIN_COMMAND_DELAY) {
                 return;
             }
-            
+
             lastCommandTime = now;
-            
+
             socket.emit('robot_command', {
                 command: cmd,
                 csrf_token: csrfToken
             });
-            
+
             // Buton feedback
             const btn = event.target.closest('.control-btn');
             if (btn) {
@@ -663,35 +702,97 @@
                 }, 100);
             }
         }
-        
+
+        // Sürekli komut başlatma
+        function startCommand(cmd) {
+            // Önceki komutu durdur
+            stopCommand();
+
+            currentCommand = cmd;
+
+            // İlk komutu hemen gönder
+            sendSingleCommand(cmd);
+
+            // Sürekli göndermek için interval başlat (MIN_COMMAND_DELAY kadar bekle)
+            commandInterval = setInterval(() => {
+                sendSingleCommand(cmd);
+            }, MIN_COMMAND_DELAY);
+        }
+
+        // Komutu durdurma
+        function stopCommand() {
+            if (commandInterval) {
+                clearInterval(commandInterval);
+                commandInterval = null;
+            }
+
+            if (currentCommand) {
+                // Dur komutu gönder
+                sendSingleCommand('stop');
+                currentCommand = null;
+            }
+        }
+
         // Klavye kontrolleri
         document.addEventListener('keydown', (e) => {
             e.preventDefault();
-            
-            switch(e.key.toLowerCase()) {
+
+            switch (e.key.toLowerCase()) {
+                case 'q':
+                    startCommand('forward_left');
+                    break;
                 case 'w':
                 case 'arrowup':
-                    sendCommand('forward');
+                    startCommand('forward');
                     break;
-                case 's':
-                case 'arrowdown':
-                    sendCommand('backward');
+                case 'e':
+                    startCommand('forward_right');
                     break;
                 case 'a':
                 case 'arrowleft':
-                    sendCommand('left');
+                    startCommand('left');
                     break;
                 case 'd':
                 case 'arrowright':
-                    sendCommand('right');
+                    startCommand('right');
+                    break;
+                case 'z':
+                    startCommand('backward_left');
+                    break;
+                case 's':
+                case 'arrowdown':
+                    startCommand('backward');
+                    break;
+                case 'c':
+                    startCommand('backward_right');
                     break;
                 case ' ':
                 case 'spacebar':
-                    sendCommand('stop');
+                    stopCommand();
                     break;
             }
         });
-        
+
+        // Klavye bırakma
+        document.addEventListener('keyup', (e) => {
+            switch (e.key.toLowerCase()) {
+                case 'q':
+                case 'w':
+                case 'e':
+                case 'a':
+                case 'd':
+                case 'z':
+                case 's':
+                case 'c':
+                case 'arrowup':
+                case 'arrowdown':
+                case 'arrowleft':
+                case 'arrowright':
+                    stopCommand();
+                    break;
+            }
+        });
+
         // Serial fonksiyonları
         function checkSerialStatus() {
             fetch('/serial/status')
@@ -704,14 +805,14 @@
                     addLog(`Serial durumu kontrol hatası: ${error}`, 'error');
                 });
         }
-        
+
         function autoConnectSerial() {
             addLog('Serial otomatik bağlanma deneniyor...', 'info');
             // Bu fonksiyonu server tarafında implement etmek gerekebilir
             // Şimdilik sadece durum kontrolü yap
             checkSerialStatus();
         }
-        
+
         function disconnectSerial() {
             if (confirm('Serial bağlantısını kesmek istediğinize emin misiniz?')) {
                 fetch('/serial/disconnect')
@@ -725,42 +826,44 @@
                     });
             }
         }
-        
+
         function sendTestCommand() {
             // Test komutu gönder
-            sendCommand('stop');
+            sendSingleCommand('stop');
             addLog('Test komutu gönderildi', 'serial');
         }
-        
+
         // Socket.io events
         socket.on('connect', () => {
             console.log('✅ WebSocket bağlandı');
             updateStatus('ws', 'online', 'Bağlı');
             addLog('WebSocket bağlantısı kuruldu', 'info');
-            
+
             // Sistem durumunu kontrol et
             checkSystemStatus();
         });
-        
+
         socket.on('disconnect', () => {
             console.log('❌ WebSocket bağlantısı kesildi');
             updateStatus('ws', 'offline', 'Bağlantı kesildi');
             addLog('WebSocket bağlantısı kesildi', 'warning');
+            // Komutları durdur
+            stopCommand();
         });
-        
+
         socket.on('connection_status', (data) => {
             addLog(data.message, 'info');
         });
-        
+
         socket.on('status_update', (data) => {
             addLog(`Komut: ${data.message} (${data.char})`, 'info');
         });
-        
+
         socket.on('serial_connection', (data) => {
             updateSerialStatus(data.connected, data.port);
             addLog(`Serial: ${data.message}`, 'serial');
         });
-        
+
         socket.on('serial_status', (data) => {
             if (data.status === 'sent') {
                 addLog(`Serial komut: ${data.command} → '${data.char}'`, 'serial');
@@ -768,15 +871,15 @@
                 addLog(`Serial hatası: ${data.message}`, 'error');
             }
         });
-        
+
         socket.on('serial_response', (data) => {
             addLog(`Arduino: ${data.message}`, 'serial');
         });
-        
+
         socket.on('error', (data) => {
             addLog(`Hata: ${data.message}`, 'error');
         });
-        
+
         // Sistem durumunu kontrol et
         function checkSystemStatus() {
             fetch('/api/status')
@@ -791,17 +894,17 @@
                     } else {
                         updateStatus('cam', 'offline', 'Demo Modu');
                     }
-                    
+
                     // Serial durumu
                     updateSerialStatus(data.serial, data.serial_port);
-                    
+
                     addLog('Sistem durumu güncellendi', 'info');
                 })
                 .catch(error => {
                     addLog('Sistem durumu alınamadı', 'error');
                 });
         }
-        
+
         // Sağlık kontrolü
         function healthCheck() {
             fetch('/api/health')
@@ -813,11 +916,11 @@
                     console.error('Sağlık kontrolü hatası:', error);
                 });
         }
-        
+
         // Periyodik kontroller
         setInterval(healthCheck, 30000); // 30 saniyede bir
         setInterval(checkSystemStatus, 10000); // 10 saniyede bir sistem durumu
-        
+
         // İlk kontroller
         setTimeout(() => {
             if (!socket.connected) {
@@ -825,22 +928,28 @@
                 addLog('WebSocket bağlantısı kurulamadı', 'error');
             }
         }, 5000);
-        
+
         // Video akışı hatası
         const videoFeed = document.querySelector('.video-feed');
-        videoFeed.onerror = function() {
+        videoFeed.onerror = function () {
             addLog('Video akışı hatası', 'error');
             updateStatus('cam', 'offline', 'Akış hatası');
         };
-        
-        videoFeed.onload = function() {
+
+        videoFeed.onload = function () {
             addLog('Video akışı başladı', 'info');
         };
-        
+
         // İlk yüklemede serial durumunu kontrol et
-        window.onload = function() {
+        window.onload = function () {
             setTimeout(checkSystemStatus, 1000);
         };
+
+        // Sayfa kapatılmadan önce komutları durdur
+        window.addEventListener('beforeunload', function () {
+            stopCommand();
+        });
     </script>
 </body>
+
 </html>

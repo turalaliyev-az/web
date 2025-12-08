@@ -153,8 +153,8 @@ class SerialManager:
                         
                         # Serial port'a komutu gönder
                         if self.serial_port and self.serial_port.is_open:
-                            # Komutu Arduino'ya gönder (örn: 'w\n', 'a\n', vb.)
-                            command_str = f"{cmd_char}\n"
+                            # Komutu Arduino'ya gönder (sadece karakter, newline olmadan)
+                            command_str = cmd_char
                             self.serial_port.write(command_str.encode('utf-8'))
                             self.serial_port.flush()
                             
@@ -517,21 +517,25 @@ def handle_robot_command(data):
             emit('error', {'message': 'Güvenlik hatası!'})
             return
         
-        valid_commands = ['forward', 'backward', 'left', 'right', 'stop']
+        valid_commands = ['forward', 'backward', 'left', 'right', 'stop', 'forward_left', 'forward_right', 'backward_left', 'backward_right']
         if cmd not in valid_commands:
             emit('error', {'message': 'Geçersiz komut!'})
             return
-        
+
         timestamp = datetime.now().strftime('%H:%M:%S')
         print(f"[{timestamp}] Komut: {cmd.upper()}")
-        
+
         # Komut haritalama (Arduino komutları)
         command_map = {
             'forward': 'w',
             'backward': 's',
             'left': 'a',
             'right': 'd',
-            'stop': 'y'
+            'stop': 'y',
+            'forward_left': 'q',
+            'forward_right': 'e',
+            'backward_left': 'z',
+            'backward_right': 'c'
         }
         cmd_char = command_map.get(cmd, '?')
         
