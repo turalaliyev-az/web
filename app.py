@@ -1,35 +1,40 @@
 """
-Robot Control Panel - Complete System with Serial Control & MAVLink Telemetry
+🤖 ROBOT KONTROL PANELİ - TAM ÇALIŞAN SİSTEM (OTOMATİK KAMERA)
 """
 
 import cv2
 import time
 import numpy as np
-from flask import Flask, render_template, Response, request, session, redirect, url_for
+from flask import Flask, render_template, Response, request, session, jsonify, redirect, url_for
 from flask_socketio import SocketIO, emit
 from datetime import datetime
-from functools import wraps
 import secrets
 import threading
 import queue
 import math
 import os
+import json
+from functools import wraps
 
+# ==================== FLASK APP ====================
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'robot_control_complete_system_2024'
+app.config['SECRET_KEY'] = 'robot_control_secret_key_2024'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
+# ==================== SOCKETIO ====================
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
     async_mode='threading',
     ping_interval=5,
     ping_timeout=10,
+    max_http_buffer_size=1e8,
     logger=False,
     engineio_logger=False
 )
 
+# ==================== AUTHENTICATION ====================
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -43,64 +48,350 @@ def generate_csrf_token():
         session['csrf_token'] = secrets.token_hex(16)
     return session['csrf_token']
 
-# ==================== SERIAL PORT YÖNETİCİSİ (Arduino) ====================
-class SerialManager:
+# ==================== KAMERA SİSTEMİ (OTOMATİK TARAMA) ====================
+class CameraSystem:
+    def __init__(self):
+        self.camera = None
+        self.frame_queue = queue.Queue(maxsize=2)
+        self.running = False
+        self.camera_thread = None
+        self.target_fps = 25
+        self.resolution = (640, 480)  # Daha yüksek çözünürlük
+        self.last_frame_time = 0
+        self.fps = 0
+        self.frame_count = 0
+        self.last_fps_time = time.time()
+        self.camera_index = None  # Bulunan kamera indeksi
+        self.camera_name = "Bulunamadı"
+        
+        self.initialize_camera()
+    
+    def find_camera(self):
+        """0-9 arası tüm kamera indekslerini tarar"""
+        print("Kamera aranıyor (0-9)...")
+        available_cameras = []
+        
+        # 0'dan 9'a kadar tüm indeksleri tara
+        for cam_index in range(10):
+            try:
+                cap = cv2.VideoCapture(cam_index, cv2.CAP_V4L2)
+                if cap.isOpened():
+                    # Test için birkaç frame oku
+                    test_frames = 0
+                    for _ in range(3):
+                        ret, frame = cap.read()
+                        if ret:
+                            test_frames += 1
+                    
+                    if test_frames > 0:
+                        # Kamera bilgilerini al
+                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                        available_cameras.append({
+                            'index': cam_index,
+                            'width': width,
+                            'height': height,
+                            'frames_read': test_frames
+                        })
+                        print(f"  ✓ Kamera {cam_index}: {width}x{height} ({test_frames} frame okundu)")
+                    cap.release()
+                else:
+                    print(f"  ✗ Kamera {cam_index}: Bağlantı yok")
+            except Exception as e:
+                print(f"  ✗ Kamera {cam_index} hatası: {e}")
+        
+        # Bulunan kameraları listele
+        if available_cameras:
+            print(f"\n✓ {len(available_cameras)} kamera bulundu:")
+            for cam in available_cameras:
+                print(f"  [{cam['index']}] {cam['width']}x{cam['height']}")
+            
+            # En yüksek çözünürlüklü kamerayı seç
+            best_camera = max(available_cameras, key=lambda x: x['width'] * x['height'])
+            return best_camera['index']
+        
+        print("✗ Hiçbir kamera bulunamadı")
+        return None
+    
+    def initialize_camera(self):
+        """Kamerayı otomatik bul ve başlat"""
+        try:
+            # Kamera bul
+            self.camera_index = self.find_camera()
+            
+            if self.camera_index is not None:
+                # Kamerayı başlat
+                self.camera = cv2.VideoCapture(self.camera_index, cv2.CAP_V4L2)
+                
+                if self.camera.isOpened():
+                    # Maksimum desteklenen çözünürlüğü al
+                    self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
+                    self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
+                    
+                    # En iyi ayarları yap
+                    self.camera.set(cv2.CAP_PROP_FPS, self.target_fps)
+                    self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    self.camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+                    
+                    # 5 test frame'i oku
+                    test_success = 0
+                    for i in range(5):
+                        ret, frame = self.camera.read()
+                        if ret:
+                            test_success += 1
+                            # Gerçek çözünürlüğü al
+                            if i == 0:
+                                h, w = frame.shape[:2]
+                                self.resolution = (w, h)
+                                self.camera_name = f"Kamera {self.camera_index} ({w}x{h})"
+                        
+                        time.sleep(0.1)
+                    
+                    if test_success > 0:
+                        print(f"✓ {self.camera_name} başarıyla başlatıldı")
+                        self.start()
+                        return True
+                    else:
+                        print(f"✗ Kamera {self.camera_index} test frame'leri okuyamadı")
+                        self.camera.release()
+                        self.camera = None
+                else:
+                    print(f"✗ Kamera {self.camera_index} açılamadı")
+            else:
+                print("⚠️ Kamera bulunamadı - Demo modu")
+                return False
+                
+        except Exception as e:
+            print(f"Kamera başlatma hatası: {e}")
+            return False
+        
+        return False
+    
+    def start(self):
+        """Kamera thread'ini başlat"""
+        if self.running:
+            return
+        
+        self.running = True
+        self.camera_thread = threading.Thread(target=self.capture_loop, daemon=True)
+        self.camera_thread.start()
+        print("✓ Kamera thread başlatıldı")
+    
+    def capture_loop(self):
+        """Frame yakalama döngüsü"""
+        print(f"Kamera capture loop başladı: {self.camera_name}")
+        
+        while self.running:
+            try:
+                start_time = time.time()
+                
+                if self.camera and self.camera.isOpened():
+                    ret, frame = self.camera.read()
+                    
+                    if ret:
+                        # Boyutlandır (performans için)
+                        if frame.shape[1] > 640:
+                            frame = cv2.resize(frame, (640, 480))
+                        
+                        # FPS hesapla
+                        self.frame_count += 1
+                        current_time = time.time()
+                        if current_time - self.last_fps_time >= 1.0:
+                            self.fps = self.frame_count
+                            self.frame_count = 0
+                            self.last_fps_time = current_time
+                        
+                        # Queue'ya ekle
+                        if self.frame_queue.full():
+                            try:
+                                self.frame_queue.get_nowait()
+                            except queue.Empty:
+                                pass
+                        
+                        self.frame_queue.put(frame)
+                        self.last_frame_time = time.time()
+                        
+                    else:
+                        # Kamera hatası
+                        print(f"⚠️ Kamera {self.camera_index} frame okuyamadı")
+                        demo_frame = self.create_demo_frame()
+                        if not self.frame_queue.full():
+                            self.frame_queue.put(demo_frame)
+                else:
+                    # Demo mod
+                    demo_frame = self.create_demo_frame()
+                    if not self.frame_queue.full():
+                        self.frame_queue.put(demo_frame)
+                
+                # FPS kontrolü
+                elapsed = time.time() - start_time
+                target_delay = 1.0 / self.target_fps
+                if elapsed < target_delay:
+                    time.sleep(target_delay - elapsed)
+                    
+            except Exception as e:
+                print(f"Kamera loop hatası: {e}")
+                time.sleep(0.1)
+    
+    def create_demo_frame(self):
+        """Demo frame oluştur"""
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        
+        # Arkaplan gradient
+        for i in range(480):
+            color = int((i / 480) * 50)
+            cv2.line(frame, (0, i), (640, i), (color, color, 50), 1)
+        
+        # Robot simgesi
+        center_x, center_y = 320, 240
+        cv2.circle(frame, (center_x, center_y), 60, (0, 200, 200), 3)
+        cv2.arrowedLine(frame, (center_x, center_y), 
+                       (center_x, center_y - 50), (0, 255, 0), 3)
+        
+        # Metinler
+        cv2.putText(frame, "DEMO MODE", (220, 120),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+        cv2.putText(frame, f"{self.fps} FPS", (540, 30),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+        cv2.putText(frame, "Kamera bağlı değil", (200, 180),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 0), 1)
+        
+        # Sistem bilgisi
+        current_time = datetime.now().strftime('%H:%M:%S')
+        cv2.putText(frame, f"Time: {current_time}", (10, 30),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+        
+        if self.camera_index is not None:
+            cv2.putText(frame, f"Port: {self.camera_index}", (10, 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1)
+        
+        # Kontrol bilgileri
+        cv2.putText(frame, "W/A/S/D - Hareket", (200, 350),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(frame, "Space/Y - Dur", (200, 380),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(frame, "Q/E/Z/C - Capraz", (200, 410),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        
+        return frame
+    
+    def get_frame(self):
+        """Frame al"""
+        try:
+            if not self.frame_queue.empty():
+                frame = self.frame_queue.get_nowait()
+                self.frame_queue.task_done()
+                
+                # Timestamp ekle
+                timestamp = datetime.now().strftime('%H:%M:%S')
+                cv2.putText(frame, timestamp, (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+                
+                # FPS ve kamera bilgisi
+                cv2.putText(frame, f"{self.fps} FPS", (frame.shape[1] - 120, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1)
+                
+                if self.camera_index is not None:
+                    cv2.putText(frame, f"Cam: {self.camera_index}", (frame.shape[1] - 120, 60),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
+                
+                return frame
+        except queue.Empty:
+            pass
+        
+        return self.create_demo_frame()
+    
+    def get_status(self):
+        """Kamera durumu"""
+        return {
+            'connected': self.camera is not None and self.camera.isOpened(),
+            'fps': self.fps,
+            'resolution': self.resolution,
+            'camera_index': self.camera_index,
+            'camera_name': self.camera_name,
+            'queue_size': self.frame_queue.qsize(),
+            'running': self.running
+        }
+    
+    def stop(self):
+        """Kamerayı durdur"""
+        self.running = False
+        
+        if self.camera_thread and self.camera_thread.is_alive():
+            self.camera_thread.join(timeout=1)
+        
+        if self.camera and self.camera.isOpened():
+            self.camera.release()
+        
+        print("✓ Kamera durduruldu")
+
+# ==================== SERIAL SİSTEMİ ====================
+class SerialSystem:
     def __init__(self):
         self.serial_port = None
         self.connected = False
-        self.command_queue = queue.Queue()
-        self.running = False
-        self.thread = None
-        self.serial_module = None
         self.port_name = None
+        self.command_queue = queue.Queue(maxsize=100)
+        self.response_queue = queue.Queue(maxsize=100)
+        self.running = False
+        self.worker_thread = None
+        self.serial_module = None
         
+        # Komut map
+        self.command_map = {
+            'forward': 'w',
+            'backward': 's',
+            'left': 'a',
+            'right': 'd',
+            'stop': 'y',
+            'forward_left': 'q',
+            'forward_right': 'e',
+            'backward_left': 'z',
+            'backward_right': 'c'
+        }
+        
+        self.initialize_serial()
+    
+    def initialize_serial(self):
+        """Serial bağlantısını başlat"""
         try:
             import serial
             import serial.tools.list_ports
             self.serial_module = serial
             self.serial_tools = serial.tools.list_ports
             print("✓ PySerial modülü yüklendi")
-            self.detect_and_connect()
+            
+            # Otomatik bağlan
+            threading.Thread(target=self.auto_connect, daemon=True).start()
+            return True
+            
         except ImportError:
-            print("⚠️ PySerial modülü yüklenemedi. Serial desteği devre dışı.")
-            self.serial_module = None
+            print("⚠️ PySerial modülü yüklenemedi - Demo modu")
+            return False
     
-    def detect_and_connect(self):
-        """Mevcut serial portları tespit et ve bağlan"""
-        if not self.serial_module:
-            return False
+    def auto_connect(self):
+        """Otomatik bağlanma"""
+        time.sleep(2)  # Sistemin başlamasını bekle
         
-        try:
-            ports = list(self.serial_tools.comports())
-            print(f"Bulunan serial portlar: {[p.device for p in ports]}")
-            
-            # /dev/ttyUSB0 için öncelikli kontrol
-            for port in ports:
-                port_name = port.device
-                if 'ttyUSB0' in port_name:
-                    print(f"Arduino portu bulundu: {port_name}")
-                    if self.connect(port_name):
-                        return True
-            
-            # Diğer USB portlarını dene
-            for port in ports:
-                port_name = port.device
-                if 'ttyUSB' in port_name or 'ttyACM' in port_name:
-                    print(f"Potansiyel Arduino portu: {port_name}")
-                    if self.connect(port_name):
-                        return True
-            
-            if ports:
-                port_name = ports[0].device
-                print(f"İlk port deneniyor: {port_name}")
-                return self.connect(port_name)
-            
-            print("Serial port bulunamadı")
-            return False
-            
-        except Exception as e:
-            print(f"Serial port tespit hatası: {e}")
-            return False
+        if not self.serial_module:
+            return
+        
+        ports = list(self.serial_tools.comports())
+        print(f"Bulunan portlar: {[p.device for p in ports]}")
+        
+        # Öncelikli portlar
+        preferred_ports = ['/dev/ttyUSB0', '/dev/ttyACM0', '/dev/ttyUSB1', 'COM3', 'COM4']
+        
+        for port_name in preferred_ports:
+            if self.connect(port_name):
+                return
+        
+        # Diğer portları dene
+        for port in ports:
+            if self.connect(port.device):
+                return
+        
+        print("✗ Serial port bulunamadı - Demo modu")
     
     def connect(self, port_name):
         """Belirtilen porta bağlan"""
@@ -109,8 +400,8 @@ class SerialManager:
             self.serial_port = self.serial_module.Serial(
                 port=port_name,
                 baudrate=115200,
-                timeout=0.1,
-                write_timeout=0.5
+                timeout=0.05,
+                write_timeout=0.05
             )
             
             time.sleep(2)
@@ -118,9 +409,11 @@ class SerialManager:
             self.serial_port.reset_output_buffer()
             
             self.connected = True
-            print(f"✓ Serial port bağlandı: {port_name}")
             
+            # Thread başlat
             self.start()
+            
+            print(f"✓ Serial bağlandı: {port_name}")
             
             socketio.emit('serial_connection', {
                 'connected': True,
@@ -133,530 +426,449 @@ class SerialManager:
         except Exception as e:
             print(f"✗ Serial bağlantı hatası ({port_name}): {e}")
             self.connected = False
-            
-            socketio.emit('serial_connection', {
-                'connected': False,
-                'port': None,
-                'message': f'Arduino bağlantı hatası: {str(e)[:50]}'
-            })
-            
             return False
     
     def start(self):
-        """Serial worker thread'ini başlat"""
-        if not self.connected:
+        """Worker thread başlat"""
+        if self.running:
             return
         
         self.running = True
-        self.thread = threading.Thread(target=self.serial_worker, daemon=True)
-        self.thread.start()
-        print("✓ Serial worker thread başlatıldı")
+        self.worker_thread = threading.Thread(target=self.worker_loop, daemon=True)
+        self.worker_thread.start()
+        print("✓ Serial worker başlatıldı")
     
-    def serial_worker(self):
-        """Serial komutlarını işleyen thread"""
-        print("Serial worker başlatıldı")
-        
-        while self.running and self.connected:
+    def worker_loop(self):
+        """Komut işleme döngüsü"""
+        while self.running:
             try:
-                # Komut kuyruğunu işle
+                # Komut gönder
                 if not self.command_queue.empty():
-                    try:
-                        cmd_data = self.command_queue.get_nowait()
-                        cmd = cmd_data.get('command')
-                        cmd_char = cmd_data.get('char', '?')
-                        
-                        if self.serial_port and self.serial_port.is_open:
-                            command_str = cmd_char
-                            self.serial_port.write(command_str.encode('utf-8'))
+                    cmd_data = self.command_queue.get_nowait()
+                    cmd_char = cmd_data.get('char', '?')
+                    cmd_name = cmd_data.get('command', 'unknown')
+                    
+                    if self.connected and self.serial_port and self.serial_port.is_open:
+                        try:
+                            self.serial_port.write(cmd_char.encode('utf-8'))
                             self.serial_port.flush()
                             
                             socketio.emit('serial_status', {
                                 'status': 'sent',
-                                'command': cmd,
+                                'command': cmd_name,
                                 'char': cmd_char,
-                                'message': f"'{cmd_char}' Arduino'ya gönderildi"
+                                'message': f"'{cmd_char}' gönderildi"
                             })
-                        
-                        self.command_queue.task_done()
-                        
-                    except queue.Empty:
-                        pass
+                            
+                        except Exception as e:
+                            print(f"Komut gönderme hatası: {e}")
+                            socketio.emit('serial_status', {
+                                'status': 'error',
+                                'message': f"Gönderme hatası: {e}"
+                            })
+                    
+                    self.command_queue.task_done()
                 
-                # Arduino'dan gelen verileri oku
-                if self.serial_port and self.serial_port.is_open:
+                # Serial'dan oku
+                if self.connected and self.serial_port and self.serial_port.is_open:
                     try:
                         if self.serial_port.in_waiting > 0:
                             response = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
-                            if response and len(response) > 0:
+                            if response:
                                 socketio.emit('serial_response', {
                                     'message': response,
-                                    'source': 'arduino'
+                                    'source': 'arduino',
+                                    'timestamp': time.time()
                                 })
-                    except:
+                    except Exception as e:
                         pass
                 
                 time.sleep(0.001)
                 
+            except queue.Empty:
+                time.sleep(0.001)
             except Exception as e:
                 print(f"Serial worker hatası: {e}")
                 time.sleep(0.01)
     
-    def send_command(self, cmd, cmd_char):
-        """Serial port'a komut gönder"""
-        if not self.connected or not self.serial_port:
+    def send_command(self, command_name):
+        """Komut gönder"""
+        if command_name not in self.command_map:
+            return False
+        
+        cmd_char = self.command_map[command_name]
+        
+        # Demo mod için
+        if not self.connected or not self.serial_module:
             socketio.emit('serial_response', {
-                'message': f"Demo: {cmd.upper()} komutu ('{cmd_char}') - Arduino bağlı değil",
-                'source': 'demo'
+                'message': f"DEMO: {command_name.upper()} ('{cmd_char}') - Arduino bağlı değil",
+                'source': 'demo',
+                'timestamp': time.time()
             })
             return True
         
+        # Kuyruğa ekle
         try:
-            self.command_queue.put({
-                'command': cmd,
-                'char': cmd_char
-            })
-            return True
-            
+            if not self.command_queue.full():
+                self.command_queue.put({
+                    'command': command_name,
+                    'char': cmd_char,
+                    'timestamp': time.time()
+                })
+                return True
+            else:
+                print("Komut kuyruğu dolu!")
+                return False
+                
         except Exception as e:
-            print(f"Komut kuyruğa ekleme hatası: {e}")
-            socketio.emit('serial_status', {
-                'status': 'error',
-                'message': f"Komut gönderilemedi: {e}"
-            })
+            print(f"Komut ekleme hatası: {e}")
             return False
     
+    def get_status(self):
+        """Durum bilgisi"""
+        return {
+            'connected': self.connected,
+            'port': self.port_name,
+            'queue_size': self.command_queue.qsize(),
+            'running': self.running
+        }
+    
     def cleanup(self):
-        """Kaynakları temizle"""
+        """Temizlik"""
         self.running = False
         
-        if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=1.0)
+        if self.worker_thread and self.worker_thread.is_alive():
+            self.worker_thread.join(timeout=1)
         
-        if self.serial_port and self.serial_port.is_open:
+        if self.serial_port and self.serial_port.is_open():
             try:
                 self.serial_port.close()
-                print("✓ Serial port kapatıldı")
             except:
                 pass
         
         self.connected = False
-        print("Serial manager temizlendi")
+        print("✓ Serial sistem temizlendi")
 
-# ==================== MAVLINK TELEMETRİ (Pixhawk) ====================
-class MAVLinkTelemetry:
+# ==================== MAVLINK SİSTEMİ ====================
+class MAVLinkSystem:
     def __init__(self):
         self.device = "/dev/ttyUSB1"
-        self.baud = 115200  # 115200 baud
-        self.emit_hz = 5
-        self.heartbeat_timeout = 10
-        
+        self.baud = 115200
         self.connected = False
-        self.mav_connection = None
-        self.mav_thread = None
         self.running = False
-        self.last_heartbeat_time = 0
-        self.last_emit_time = 0
-        
-        self.telemetry = {
+        self.mav_thread = None
+        self.last_heartbeat = 0
+        self.telemetry_cache = {
             'timestamp': 0,
-            'connection_status': 'DISCONNECTED',
-            'gps': {
-                'lat': 0,
-                'lon': 0,
-                'alt_m': 0,
-                'vel_m_s': 0,
-                'cog_deg': 0,
-                'fix_type': 0,
-                'satellites_visible': 0,
-                'hdop': 0
-            },
-            'attitude': {
-                'roll_rad': 0,
-                'pitch_rad': 0,
-                'yaw_deg': 0,
-                'roll_deg': 0,
-                'pitch_deg': 0
-            },
-            'imu': {
-                'xacc': 0,
-                'yacc': 0,
-                'zacc': 0,
-                'xgyro': 0,
-                'ygyro': 0,
-                'zgyro': 0
-            },
-            'vfr_hud': {
-                'airspeed': 0,
-                'groundspeed': 0,
-                'heading': 0,
-                'throttle': 0,
-                'alt': 0,
-                'climb': 0
-            },
-            'battery': {
-                'voltage': 0,
-                'current': 0,
-                'remaining': 0
-            },
-            'system': {
-                'id': 0,
-                'load': 0
-            }
+            'gps': {'lat': 0, 'lon': 0, 'alt_m': 0, 'vel_m_s': 0, 'fix_type': 0, 'satellites_visible': 0},
+            'attitude': {'roll_rad': 0, 'pitch_rad': 0, 'yaw_deg': 0, 'roll_deg': 0, 'pitch_deg': 0},
+            'battery': {'voltage': 0, 'current': 0, 'remaining': 0},
+            'system': {'load': 0, 'id': 0, 'status': 'DISCONNECTED'}
         }
+        self.last_emit = 0
         
-        print(f"MAVLink Telemetri: {self.device} @ {self.baud} baud")
+        # Başlatma thread'i
+        threading.Thread(target=self.delayed_init, daemon=True).start()
     
-    def connect(self):
-        """MAVLink bağlantısını kur"""
+    def delayed_init(self):
+        """Gecikmeli başlatma"""
+        time.sleep(3)
+        self.initialize_mavlink()
+    
+    def initialize_mavlink(self):
+        """MAVLink bağlantısını başlat"""
         try:
             from pymavlink import mavutil
+            print("✓ pymavlink modülü yüklendi")
             
-            print(f"MAVLink bağlanıyor: {self.device} @ {self.baud} baud")
-            
-            if not os.path.exists(self.device):
-                print(f"✗ Port bulunamadı: {self.device}")
-                self.telemetry['connection_status'] = 'PORT_NOT_FOUND'
-                socketio.emit('mavlink_status', {
-                    'connected': False,
-                    'message': f'Port bulunamadı: {self.device}',
-                    'device': self.device,
-                    'baud': self.baud
-                })
-                return False
-            
-            self.mav_connection = mavutil.mavlink_connection(
-                self.device,
-                baud=self.baud,
-                autoreconnect=True,
-                retries=5,
-                source_system=255,
-                source_component=0,
-                dialect='common',
-                robust_parsing=True
-            )
-            
-            print(f"MAVLink bağlantısı kuruldu, heartbeat bekleniyor...")
-            
-            max_attempts = 20
-            for attempt in range(max_attempts):
-                try:
-                    msg = self.mav_connection.recv_match(
-                        type='HEARTBEAT',
-                        blocking=True,
-                        timeout=1
-                    )
-                    
-                    if msg:
-                        self.connected = True
-                        self.last_heartbeat_time = time.time()
-                        self.telemetry['connection_status'] = 'CONNECTED'
-                        self.telemetry['system']['id'] = msg.get_srcSystem()
-                        
-                        print(f"✓ MAVLink bağlandı!")
-                        print(f"  System ID: {msg.get_srcSystem()}")
-                        print(f"  Component ID: {msg.get_srcComponent()}")
-                        
-                        self.start()
-                        
-                        socketio.emit('mavlink_status', {
-                            'connected': True,
-                            'message': 'Pixhawk bağlandı',
-                            'device': self.device,
-                            'baud': self.baud,
-                            'system': msg.get_srcSystem(),
-                            'component': msg.get_srcComponent()
-                        })
-                        
-                        return True
-                        
-                except Exception as e:
-                    if attempt % 5 == 0:
-                        print(f"  Heartbeat denemesi {attempt+1}/{max_attempts}...")
-                    continue
-            
-            print(f"✗ Heartbeat alınamadı ({max_attempts} deneme)")
-            self.telemetry['connection_status'] = 'NO_HEARTBEAT'
-            socketio.emit('mavlink_status', {
-                'connected': False,
-                'message': f'Heartbeat alınamadı ({max_attempts} deneme)',
-                'device': self.device
-            })
-            return False
+            # Thread başlat
+            self.running = True
+            self.mav_thread = threading.Thread(target=self.mavlink_loop, daemon=True)
+            self.mav_thread.start()
+            print("✓ MAVLink thread başlatıldı")
             
         except ImportError:
-            print("✗ pymavlink kurulu değil!")
-            print("  pip install pymavlink")
-            self.telemetry['connection_status'] = 'PYMAVLINK_NOT_INSTALLED'
-            return False
-        except Exception as e:
-            print(f"✗ Bağlantı hatası: {e}")
-            self.telemetry['connection_status'] = f'ERROR: {str(e)[:50]}'
-            socketio.emit('mavlink_status', {
-                'connected': False,
-                'message': f'Bağlantı hatası: {str(e)[:50]}',
-                'device': self.device
-            })
+            print("⚠️ pymavlink kurulu değil - Telemetri simülasyonu")
+            self.start_simulation()
             return False
     
-    def start(self):
-        """Thread başlat"""
-        if not self.connected:
-            return
-        
+    def start_simulation(self):
+        """Telemetri simülasyonu başlat"""
         self.running = True
-        self.mav_thread = threading.Thread(target=self.mavlink_worker, daemon=True)
+        self.mav_thread = threading.Thread(target=self.simulation_loop, daemon=True)
         self.mav_thread.start()
-        print("✓ MAVLink thread başlatıldı")
+        print("✓ Telemetri simülasyonu başlatıldı")
     
-    def mavlink_worker(self):
-        """MAVLink veri işleme thread'i"""
-        print("MAVLink worker başladı")
+    def simulation_loop(self):
+        """Simülasyon döngüsü"""
+        import random
         
-        while self.running and self.connected:
+        while self.running:
             try:
                 current_time = time.time()
                 
-                if current_time - self.last_heartbeat_time > self.heartbeat_timeout:
-                    print(f"⚠️ Heartbeat timeout! ({self.heartbeat_timeout}s)")
-                    self.connected = False
-                    self.telemetry['connection_status'] = 'HEARTBEAT_TIMEOUT'
-                    socketio.emit('mavlink_status', {
-                        'connected': False,
-                        'message': f'Heartbeat timeout ({self.heartbeat_timeout}s)',
-                        'device': self.device
-                    })
-                    break
+                # GPS simülasyonu
+                base_lat = 41.0082 + (random.random() - 0.5) * 0.001
+                base_lon = 28.9784 + (random.random() - 0.5) * 0.001
                 
+                self.telemetry_cache.update({
+                    'timestamp': current_time,
+                    'gps': {
+                        'lat': base_lat,
+                        'lon': base_lon,
+                        'alt_m': 50 + random.random() * 20,
+                        'vel_m_s': 2 + random.random() * 3,
+                        'fix_type': 3,
+                        'satellites_visible': 8 + int(random.random() * 4)
+                    },
+                    'attitude': {
+                        'roll_rad': (random.random() - 0.5) * 0.2,
+                        'pitch_rad': (random.random() - 0.5) * 0.1,
+                        'yaw_deg': random.random() * 360,
+                        'roll_deg': (random.random() - 0.5) * 20,
+                        'pitch_deg': (random.random() - 0.5) * 10
+                    },
+                    'battery': {
+                        'voltage': 12.4 + random.random() * 0.4,
+                        'current': 3 + random.random() * 2,
+                        'remaining': 75 + random.random() * 20
+                    },
+                    'system': {
+                        'load': 45 + random.random() * 10,
+                        'id': 1,
+                        'status': 'SIMULATION'
+                    }
+                })
+                
+                # Her 0.2 saniyede bir gönder (5Hz)
+                if current_time - self.last_emit >= 0.2:
+                    socketio.emit('mavlink_telemetry', self.telemetry_cache)
+                    self.last_emit = current_time
+                
+                # Durum güncellemesi
+                if not self.connected:
+                    self.connected = True
+                    socketio.emit('mavlink_status', {
+                        'connected': True,
+                        'message': 'Telemetri simülasyonu çalışıyor',
+                        'device': 'SIMULATION',
+                        'baud': 115200
+                    })
+                
+                time.sleep(0.01)
+                
+            except Exception as e:
+                print(f"Simülasyon hatası: {e}")
+                time.sleep(0.1)
+    
+    def mavlink_loop(self):
+        """Gerçek MAVLink döngüsü"""
+        try:
+            from pymavlink import mavutil
+            
+            print(f"MAVLink bağlanıyor: {self.device}")
+            
+            if not os.path.exists(self.device):
+                print(f"✗ Port bulunamadı: {self.device}")
+                socketio.emit('mavlink_status', {
+                    'connected': False,
+                    'message': f'Port bulunamadı: {self.device}',
+                    'device': self.device
+                })
+                self.start_simulation()
+                return
+            
+            # Bağlan
+            connection = mavutil.mavlink_connection(
+                self.device,
+                baud=self.baud,
+                autoreconnect=True,
+                retries=5
+            )
+            
+            # Heartbeat bekle
+            start_time = time.time()
+            while time.time() - start_time < 5:
+                msg = connection.recv_match(type='HEARTBEAT', blocking=False, timeout=0.5)
+                if msg:
+                    self.connected = True
+                    self.last_heartbeat = time.time()
+                    
+                    print(f"✓ MAVLink bağlandı! System ID: {msg.get_srcSystem()}")
+                    
+                    socketio.emit('mavlink_status', {
+                        'connected': True,
+                        'message': 'Pixhawk bağlandı',
+                        'device': self.device,
+                        'baud': self.baud,
+                        'system': msg.get_srcSystem()
+                    })
+                    
+                    break
+            
+            if not self.connected:
+                print("✗ Heartbeat alınamadı - Simülasyon başlatılıyor")
+                socketio.emit('mavlink_status', {
+                    'connected': False,
+                    'message': 'Heartbeat alınamadı - Simülasyon modu',
+                    'device': self.device
+                })
+                self.start_simulation()
+                return
+            
+            # Ana döngü
+            while self.running:
                 try:
-                    msg = self.mav_connection.recv_match(
-                        blocking=False,
-                        timeout=0.05
-                    )
+                    current_time = time.time()
+                    
+                    # Heartbeat kontrolü
+                    if current_time - self.last_heartbeat > 5:
+                        print("⚠️ Heartbeat timeout!")
+                        self.connected = False
+                        socketio.emit('mavlink_status', {
+                            'connected': False,
+                            'message': 'Heartbeat timeout',
+                            'device': self.device
+                        })
+                        break
+                    
+                    # Mesaj oku
+                    msg = connection.recv_match(blocking=False, timeout=0.01)
                     
                     if msg:
                         self.process_message(msg)
                         
                         if msg.get_type() == 'HEARTBEAT':
-                            self.last_heartbeat_time = current_time
-                            
+                            self.last_heartbeat = current_time
+                    
+                    # Telemetri gönder
+                    if current_time - self.last_emit >= 0.2:
+                        socketio.emit('mavlink_telemetry', self.telemetry_cache)
+                        self.last_emit = current_time
+                    
+                    time.sleep(0.005)
+                    
                 except Exception as e:
-                    pass
-                
-                if current_time - self.last_emit_time >= 0.2:
-                    self.emit_telemetry()
-                    self.last_emit_time = current_time
-                
-                time.sleep(0.01)
-                
-            except Exception as e:
-                print(f"Worker hatası: {e}")
-                time.sleep(0.5)
-        
-        print("MAVLink worker durdu")
+                    print(f"MAVLink loop hatası: {e}")
+                    time.sleep(0.1)
+            
+            connection.close()
+            
+        except Exception as e:
+            print(f"MAVLink bağlantı hatası: {e}")
+            self.start_simulation()
     
     def process_message(self, msg):
         """MAVLink mesajını işle"""
         msg_type = msg.get_type()
         
         try:
-            self.telemetry['timestamp'] = time.time()
+            self.telemetry_cache['timestamp'] = time.time()
             
             if msg_type == 'GPS_RAW_INT':
-                self.telemetry['gps']['lat'] = msg.lat / 1e7 if msg.lat != 0 else 0
-                self.telemetry['gps']['lon'] = msg.lon / 1e7 if msg.lon != 0 else 0
-                self.telemetry['gps']['alt_m'] = msg.alt / 1000.0 if msg.alt != 0 else 0
-                self.telemetry['gps']['vel_m_s'] = msg.vel / 100.0 if msg.vel != 0 else 0
-                self.telemetry['gps']['cog_deg'] = msg.cog / 100.0 if msg.cog != 0 else 0
-                self.telemetry['gps']['fix_type'] = msg.fix_type
-                self.telemetry['gps']['satellites_visible'] = msg.satellites_visible
-                if hasattr(msg, 'eph'):
-                    self.telemetry['gps']['hdop'] = msg.eph / 100.0
+                self.telemetry_cache['gps'].update({
+                    'lat': msg.lat / 1e7 if msg.lat != 0 else 0,
+                    'lon': msg.lon / 1e7 if msg.lon != 0 else 0,
+                    'alt_m': msg.alt / 1000.0 if msg.alt != 0 else 0,
+                    'vel_m_s': msg.vel / 100.0 if msg.vel != 0 else 0,
+                    'fix_type': msg.fix_type,
+                    'satellites_visible': msg.satellites_visible
+                })
             
             elif msg_type == 'ATTITUDE':
-                self.telemetry['attitude']['roll_rad'] = msg.roll
-                self.telemetry['attitude']['pitch_rad'] = msg.pitch
-                self.telemetry['attitude']['yaw_deg'] = math.degrees(msg.yaw) % 360
-                self.telemetry['attitude']['roll_deg'] = math.degrees(msg.roll)
-                self.telemetry['attitude']['pitch_deg'] = math.degrees(msg.pitch)
-            
-            elif msg_type == 'RAW_IMU':
-                self.telemetry['imu']['xacc'] = msg.xacc
-                self.telemetry['imu']['yacc'] = msg.yacc
-                self.telemetry['imu']['zacc'] = msg.zacc
-                self.telemetry['imu']['xgyro'] = msg.xgyro
-                self.telemetry['imu']['ygyro'] = msg.ygyro
-                self.telemetry['imu']['zgyro'] = msg.zgyro
-            
-            elif msg_type == 'VFR_HUD':
-                self.telemetry['vfr_hud']['airspeed'] = msg.airspeed
-                self.telemetry['vfr_hud']['groundspeed'] = msg.groundspeed
-                self.telemetry['vfr_hud']['heading'] = msg.heading
-                self.telemetry['vfr_hud']['throttle'] = msg.throttle
-                self.telemetry['vfr_hud']['alt'] = msg.alt
-                self.telemetry['vfr_hud']['climb'] = msg.climb
+                self.telemetry_cache['attitude'].update({
+                    'roll_rad': msg.roll,
+                    'pitch_rad': msg.pitch,
+                    'yaw_deg': math.degrees(msg.yaw) % 360,
+                    'roll_deg': math.degrees(msg.roll),
+                    'pitch_deg': math.degrees(msg.pitch)
+                })
             
             elif msg_type == 'SYS_STATUS':
-                self.telemetry['system']['load'] = msg.load / 10.0
-                self.telemetry['battery']['voltage'] = msg.voltage_battery / 1000.0 if msg.voltage_battery != 0 else 0
-                self.telemetry['battery']['current'] = msg.current_battery / 100.0 if msg.current_battery != 0 else 0
-                self.telemetry['battery']['remaining'] = msg.battery_remaining
+                self.telemetry_cache['battery'].update({
+                    'voltage': msg.voltage_battery / 1000.0 if msg.voltage_battery != 0 else 0,
+                    'current': msg.current_battery / 100.0 if msg.current_battery != 0 else 0,
+                    'remaining': msg.battery_remaining
+                })
+                self.telemetry_cache['system']['load'] = msg.load / 10.0
             
-            elif msg_type == 'HEARTBEAT' and time.time() % 10 < 0.1:
-                print(f"❤️ Heartbeat: SYS={msg.get_srcSystem()}")
+            elif msg_type == 'HEARTBEAT':
+                self.telemetry_cache['system']['id'] = msg.get_srcSystem()
             
         except Exception as e:
-            print(f"Mesaj işleme hatası ({msg_type}): {e}")
-    
-    def emit_telemetry(self):
-        """Telemetriyi WebSocket'e gönder"""
-        if not self.connected:
-            return
-        
-        try:
-            socketio.emit('mavlink_telemetry', self.telemetry)
-        except Exception as e:
-            print(f"Telemetri gönderme hatası: {e}")
+            print(f"MAVLink mesaj işleme hatası ({msg_type}): {e}")
     
     def get_status(self):
-        """Durum bilgisini al"""
+        """Durum bilgisi"""
         return {
             'connected': self.connected,
             'device': self.device,
             'baud': self.baud,
-            'connection_status': self.telemetry['connection_status'],
-            'last_heartbeat': self.last_heartbeat_time
+            'status': self.telemetry_cache['system']['status']
         }
+    
+    def get_telemetry(self):
+        """Telemetri cache'ini al"""
+        return self.telemetry_cache.copy()
     
     def cleanup(self):
         """Temizlik"""
         self.running = False
-        self.connected = False
-        self.telemetry['connection_status'] = 'DISCONNECTED'
         
         if self.mav_thread and self.mav_thread.is_alive():
             self.mav_thread.join(timeout=1)
         
-        if self.mav_connection:
-            try:
-                self.mav_connection.close()
-                print("✓ MAVLink bağlantısı kapatıldı")
-            except:
-                pass
-        
-        print("MAVLink temizlendi")
+        print("✓ MAVLink sistem temizlendi")
 
-# Manager'ları başlat
-serial_manager = SerialManager()
-mavlink_telemetry = MAVLinkTelemetry()
+# ==================== SİSTEMLERİ BAŞLAT ====================
+print("\n" + "="*60)
+print("   🤖 ROBOT KONTROL PANELİ - TAM SİSTEM")
+print("   🔍 0-9 KAMERA OTOMATİK TARAMA")
+print("="*60)
 
-# ==================== KAMERA BAŞLATMA ====================
-def initialize_camera():
-    print("Kamera aranıyor...")
-    
-    available_cameras = []
-    for i in range(9):
-        try:
-            cap = cv2.VideoCapture(i, cv2.CAP_V4L2)
-            if cap.isOpened():
-                available_cameras.append(i)
-                cap.release()
-        except:
-            pass
-    
-    print(f"Mevcut kameralar: {available_cameras}")
-    
-    if not available_cameras:
-        print("Kamera bulunamadı - demo modu")
-        return None
-    
-    for cam_idx in available_cameras:
-        try:
-            cap = cv2.VideoCapture(cam_idx, cv2.CAP_V4L2)
-            if cap.isOpened():
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-                cap.set(cv2.CAP_PROP_FPS, 30)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-                
-                for _ in range(3):
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                
-                if ret:
-                    print(f"✓ Kamera {cam_idx} başarıyla bağlandı")
-                    return cap
-                else:
-                    cap.release()
-        except Exception as e:
-            print(f"Kamera {cam_idx} hatası: {e}")
-            continue
-    
-    print("Kamera bağlanamadı - demo modu")
-    return None
+camera_system = CameraSystem()
+serial_system = SerialSystem()
+mavlink_system = MAVLinkSystem()
 
-camera = initialize_camera()
+cam_status = camera_system.get_status()
+print(f"   Kamera: {cam_status['camera_name']}")
+print(f"   Arduino: {'Bağlı' if serial_system.connected else 'Demo'}")
+print(f"   Pixhawk: Telemetri aktif")
+print("="*60)
 
-# ==================== VİDEO AKIŞI ====================
+# ==================== VIDEO STREAM ====================
 def generate_frames():
     """Video frame'leri oluştur"""
     print("Video akışı başlatılıyor...")
     
     while True:
         try:
-            start_time = time.time()
+            frame = camera_system.get_frame()
             
-            if camera is None or not camera.isOpened():
-                frame = np.zeros((240, 320, 3), dtype=np.uint8)
-                cv2.putText(frame, "ROBOT KONTROL", (50, 100),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                cv2.putText(frame, "Kamera: DEMO", (80, 140),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-            else:
-                ret, frame = camera.read()
-                if not ret:
-                    time.sleep(0.01)
-                    continue
+            ret, buffer = cv2.imencode('.jpg', frame, [
+                int(cv2.IMWRITE_JPEG_QUALITY), 
+                70  # %70 kalite (performans için)
+            ])
             
-            timestamp = datetime.now().strftime('%H:%M:%S')
-            cv2.putText(frame, timestamp, (10, 20),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            if ret:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + 
+                       buffer.tobytes() + b'\r\n')
             
-            process_time = (time.time() - start_time) * 1000
-            if process_time > 0:
-                fps = 1000 / process_time
-                cv2.putText(frame, f"{fps:.1f}fps", (250, 20),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-            
-            ret, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-            if not ret:
-                continue
-            
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-            
-            elapsed = time.time() - start_time
-            if elapsed < 0.033:
-                time.sleep(0.033 - elapsed)
+            # FPS kontrolü
+            time.sleep(1.0 / camera_system.target_fps)
             
         except Exception as e:
-            print(f"Frame hatası: {e}")
+            print(f"Frame generation error: {e}")
             time.sleep(0.1)
 
-@app.route('/video_feed')
-@login_required
-def video_feed():
-    """Video akışı endpoint'i"""
-    return Response(generate_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame',
-                    headers={
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache',
-                        'Expires': '0'
-                    })
-
 # ==================== ROUTES ====================
+@app.route('/')
+@login_required
+def index():
+    """Ana sayfa"""
+    return render_template('index.html', csrf_token=generate_csrf_token())
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Giriş sayfası"""
@@ -734,11 +946,11 @@ def login():
         <div class="login-container">
             <div class="login-title">🤖 Robot Kontrol Paneli</div>
             <form method="post">
-                <input type="text" class="login-input" name="username" placeholder="Kullanıcı adı" required>
-                <input type="password" class="login-input" name="password" placeholder="Şifre" required>
+                <input type="text" class="login-input" name="username" placeholder="Kullanıcı adı" value="operator" required>
+                <input type="password" class="login-input" name="password" placeholder="Şifre" value="1234" required>
                 <button type="submit" class="login-button">Giriş Yap</button>
             </form>
-            <div class="demo-note">Demo için herhangi bir kullanıcı/şifre kullanabilirsiniz</div>
+            <div class="demo-note">Kullanıcı: operator | Şifre: 1234</div>
         </div>
     </body>
     </html>
@@ -749,103 +961,127 @@ def logout():
     """Çıkış"""
     session.pop('authenticated', None)
     session.pop('username', None)
-    print("Kullanıcı çıkış yaptı")
     return redirect(url_for('login'))
 
-@app.route('/')
+@app.route('/video_feed')
 @login_required
-def index():
-    """Ana sayfa"""
-    return render_template('index.html', csrf_token=generate_csrf_token())
+def video_feed():
+    """Video akışı"""
+    return Response(
+        generate_frames(),
+        mimetype='multipart/x-mixed-replace; boundary=frame',
+        headers={
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        }
+    )
 
-# Serial routes
-@app.route('/serial/connect/<port_name>')
+# ==================== API ROUTES ====================
+@app.route('/api/status')
 @login_required
-def serial_connect(port_name):
-    """Manuel olarak serial port bağlantısı"""
-    if serial_manager.serial_module:
-        if serial_manager.connect(port_name):
-            return {'success': True, 'message': f'{port_name} bağlandı'}
-        else:
-            return {'success': False, 'message': f'{port_name} bağlanamadı'}
-    return {'success': False, 'message': 'Serial modülü yok'}
+def api_status():
+    """Sistem durumu"""
+    return jsonify({
+        'camera': camera_system.get_status(),
+        'serial': serial_system.get_status(),
+        'mavlink': mavlink_system.get_status(),
+        'server_time': datetime.now().isoformat(),
+        'status': 'running'
+    })
 
-@app.route('/serial/disconnect')
-@login_required
-def serial_disconnect():
-    """Serial bağlantısını kes"""
-    serial_manager.cleanup()
-    return {'success': True, 'message': 'Serial bağlantısı kesildi'}
+@app.route('/api/health')
+def health():
+    """Sağlık kontrolü"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat()
+    })
 
 @app.route('/serial/status')
 @login_required
 def serial_status():
-    """Serial durumunu kontrol et"""
-    return {
-        'connected': serial_manager.connected,
-        'port': serial_manager.port_name,
-        'module_loaded': serial_manager.serial_module is not None
-    }
+    """Serial durumu"""
+    return jsonify(serial_system.get_status())
 
-# MAVLink routes
-@app.route('/mavlink/connect')
+@app.route('/serial/connect/<port_name>')
 @login_required
-def mavlink_connect():
-    """MAVLink bağlantısını kur"""
-    if mavlink_telemetry.connect():
-        return {
-            'success': True, 
-            'message': 'Pixhawk bağlandı',
-            'device': mavlink_telemetry.device,
-            'baud': mavlink_telemetry.baud
-        }
+def serial_connect(port_name):
+    """Serial bağlan"""
+    if port_name == 'auto':
+        serial_system.auto_connect()
+        return jsonify({'success': True, 'message': 'Otomatik bağlanma başlatıldı'})
+    
+    if serial_system.connect(port_name):
+        return jsonify({'success': True, 'message': f'{port_name} bağlandı'})
     else:
-        return {
-            'success': False, 
-            'message': 'Pixhawk bağlanamadı',
-            'device': mavlink_telemetry.device,
-            'status': mavlink_telemetry.telemetry['connection_status']
-        }
+        return jsonify({'success': False, 'message': f'{port_name} bağlanamadı'})
 
-@app.route('/mavlink/disconnect')
+@app.route('/serial/disconnect')
 @login_required
-def mavlink_disconnect():
-    """MAVLink bağlantısını kes"""
-    mavlink_telemetry.cleanup()
-    return {'success': True, 'message': 'Pixhawk bağlantısı kesildi'}
+def serial_disconnect():
+    """Serial bağlantıyı kes"""
+    serial_system.cleanup()
+    return jsonify({'success': True, 'message': 'Serial bağlantısı kesildi'})
 
 @app.route('/mavlink/status')
 @login_required
 def mavlink_status():
-    """MAVLink durumunu kontrol et"""
-    status = mavlink_telemetry.get_status()
-    return {
-        'connected': status['connected'],
-        'device': status['device'],
-        'baud': status['baud'],
-        'connection_status': status['connection_status'],
-        'last_heartbeat': status['last_heartbeat']
-    }
+    """MAVLink durumu"""
+    return jsonify(mavlink_system.get_status())
 
-# ==================== SOCKET İŞLEMLERİ ====================
+@app.route('/mavlink/connect')
+@login_required
+def mavlink_connect():
+    """MAVLink bağlan"""
+    return jsonify({
+        'success': True,
+        'message': 'MAVLink bağlantısı başlatıldı',
+        'device': mavlink_system.device,
+        'baud': mavlink_system.baud
+    })
+
+@app.route('/mavlink/disconnect')
+@login_required
+def mavlink_disconnect():
+    """MAVLink bağlantıyı kes"""
+    mavlink_system.cleanup()
+    return jsonify({'success': True, 'message': 'MAVLink bağlantısı kesildi'})
+
+# ==================== WEBSOCKET HANDLERS ====================
 @socketio.on('connect')
 def handle_connect():
     """Client bağlandığında"""
     print(f"Client bağlandı: {request.sid}")
-    emit('connection_status', {'status': 'connected', 'message': 'Bağlantı kuruldu!'})
     
-    emit('serial_connection', {
-        'connected': serial_manager.connected,
-        'port': serial_manager.port_name,
-        'message': 'Arduino bağlantısı hazır' if serial_manager.connected else 'Arduino bağlantısı yok'
+    emit('connection_status', {
+        'status': 'connected',
+        'message': 'Bağlantı kuruldu!'
     })
     
-    status = mavlink_telemetry.get_status()
+    # Başlangıç durumlarını gönder
+    emit('serial_connection', {
+        'connected': serial_system.connected,
+        'port': serial_system.port_name,
+        'message': 'Arduino bağlantısı hazır' if serial_system.connected else 'Arduino bağlantısı yok'
+    })
+    
+    mav_status = mavlink_system.get_status()
     emit('mavlink_status', {
-        'connected': status['connected'],
-        'message': 'Pixhawk bağlı' if status['connected'] else 'Pixhawk bağlı değil',
-        'device': status['device'],
-        'baud': status['baud']
+        'connected': mav_status['connected'],
+        'message': 'Pixhawk telemetri aktif' if mav_status['connected'] else 'Pixhawk bağlı değil',
+        'device': mav_status['device'],
+        'baud': mav_status['baud']
+    })
+    
+    # Kamera bilgisini gönder
+    cam_status = camera_system.get_status()
+    emit('camera_status', {
+        'connected': cam_status['connected'],
+        'camera_index': cam_status['camera_index'],
+        'camera_name': cam_status['camera_name'],
+        'resolution': cam_status['resolution'],
+        'fps': cam_status['fps']
     })
 
 @socketio.on('disconnect')
@@ -855,108 +1091,63 @@ def handle_disconnect():
 
 @socketio.on('robot_command')
 def handle_robot_command(data):
-    """Robot komutlarını işle"""
-    try:
-        if not session.get('authenticated'):
-            return
-        
-        cmd = data.get('command', 'unknown')
-        csrf_token = data.get('csrf_token', '')
-        
-        if csrf_token != session.get('csrf_token'):
-            emit('error', {'message': 'Güvenlik hatası!'})
-            return
-        
-        valid_commands = ['forward', 'backward', 'left', 'right', 'stop', 
-                         'forward_left', 'forward_right', 'backward_left', 'backward_right']
-        if cmd not in valid_commands:
-            emit('error', {'message': 'Geçersiz komut!'})
-            return
-
-        timestamp = datetime.now().strftime('%H:%M:%S')
-
-        command_map = {
-            'forward': 'w',
-            'backward': 's',
-            'left': 'a',
-            'right': 'd',
-            'stop': 'y',
-            'forward_left': 'q',
-            'forward_right': 'e',
-            'backward_left': 'z',
-            'backward_right': 'c'
-        }
-        cmd_char = command_map.get(cmd, '?')
-        
-        emit('status_update', {
-            'message': cmd.upper(),
-            'timestamp': timestamp,
-            'char': cmd_char
-        }, broadcast=True)
-        
-        success = serial_manager.send_command(cmd, cmd_char)
-        if not success:
-            emit('error', {'message': 'Komut gönderilemedi!'})
-        
-    except Exception as e:
-        print(f"Komut işleme hatası: {e}")
-        emit('error', {'message': 'Komut işleme hatası!'})
-
-# ==================== API ENDPOINTS ====================
-@app.route('/api/status')
-@login_required
-def api_status():
-    """Sistem durumu API"""
-    mav_status = mavlink_telemetry.get_status()
-    return {
-        'camera': camera is not None and camera.isOpened(),
-        'serial': serial_manager.connected,
-        'serial_port': serial_manager.port_name,
-        'mavlink': mav_status['connected'],
-        'mavlink_device': mav_status['device'],
-        'mavlink_baud': mav_status['baud'],
-        'mavlink_status': mav_status['connection_status'],
-        'server_time': datetime.now().isoformat(),
-        'status': 'running'
-    }
-
-@app.route('/api/health')
-def health():
-    """Sağlık kontrolü"""
-    return {'status': 'healthy', 'timestamp': datetime.now().isoformat()}
+    """Robot komutu"""
+    if not session.get('authenticated'):
+        return
+    
+    cmd = data.get('command', 'unknown')
+    csrf_token = data.get('csrf_token', '')
+    
+    if csrf_token != session.get('csrf_token'):
+        emit('error', {'message': 'Güvenlik hatası!'})
+        return
+    
+    valid_commands = ['forward', 'backward', 'left', 'right', 'stop', 
+                     'forward_left', 'forward_right', 'backward_left', 'backward_right']
+    
+    if cmd not in valid_commands:
+        emit('error', {'message': 'Geçersiz komut!'})
+        return
+    
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    
+    emit('status_update', {
+        'message': cmd.upper(),
+        'timestamp': timestamp,
+        'char': serial_system.command_map.get(cmd, '?')
+    }, broadcast=True)
+    
+    success = serial_system.send_command(cmd)
+    
+    if not success:
+        emit('error', {'message': 'Komut gönderilemedi!'})
 
 # ==================== TEMİZLİK ====================
-def cleanup():
-    """Kaynakları temizle"""
-    print("\nKaynaklar temizleniyor...")
-    
-    serial_manager.cleanup()
-    mavlink_telemetry.cleanup()
-    
-    if camera and camera.isOpened():
-        camera.release()
-        print("Kamera kapatıldı")
-    
-    print("Temizlik tamamlandı")
+import atexit
 
-# ==================== ANA PROGRAM ====================
+def cleanup():
+    """Sistem temizliği"""
+    print("\n🤖 Sistem durduruluyor...")
+    
+    camera_system.stop()
+    serial_system.cleanup()
+    mavlink_system.cleanup()
+    
+    print("✓ Tüm kaynaklar temizlendi")
+
+atexit.register(cleanup)
+
+# ==================== MAIN ====================
 if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("   🤖 ROBOT KONTROL PANELİ - TAM SİSTEM")
-    print("   🚀 Başlatılıyor...")
-    print("="*60)
-    print(f"   Arduino Serial: {'Bağlı' if serial_manager.connected else 'Bağlı değil'}")
-    if serial_manager.connected:
-        print(f"   Arduino Port: {serial_manager.port_name}")
-    print(f"   Pixhawk MAVLink: /dev/ttyUSB1 @ 115200 baud")
+    print("\n📡 Sunucu başlatılıyor: http://localhost:5000")
+    print("📡 Veya: http://<ip-adresiniz>:5000")
+    print("\n🔧 Kontroller:")
+    print("   - W/A/S/D veya ok tuşları = Robot hareketi")
+    print("   - Space veya Y = Dur")
+    print("   - Q/E/Z/C = Çapraz hareketler")
     print("="*60)
     
     try:
-        # Pixhawk bağlantısını başlat (biraz gecikmeli)
-        time.sleep(2)
-        print("Pixhawk bağlanıyor...")
-        mavlink_telemetry.connect()
-        
         socketio.run(
             app,
             host='0.0.0.0',
@@ -966,7 +1157,7 @@ if __name__ == '__main__':
             allow_unsafe_werkzeug=True
         )
     except KeyboardInterrupt:
-        print("\n\n🛑 Server durduruluyor...")
+        print("\n\n🛑 Sunucu durduruluyor...")
     except Exception as e:
         print(f"\n❌ Hata: {e}")
     finally:
