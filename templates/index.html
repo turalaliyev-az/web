@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🤖 Robot Kontrol Paneli</title>
+    <title>🤖 Robot Kontrol Paneli - Tam Sistem</title>
     <style>
         * {
             margin: 0;
@@ -22,14 +22,14 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 1100px) {
             .container {
                 grid-template-columns: 1fr;
             }
@@ -61,7 +61,6 @@
             border-radius: 10px;
             padding: 15px;
             border: 2px solid #333;
-            position: relative;
         }
 
         .video-container {
@@ -204,6 +203,48 @@
             border-color: #ff3333;
         }
 
+        /* MAVLINK CONTROL PANEL */
+        .mavlink-panel {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #333;
+            margin-top: 20px;
+            grid-column: 1 / -1;
+        }
+
+        .mavlink-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .mavlink-btn {
+            padding: 10px 20px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .mavlink-btn:hover {
+            background: #444;
+            border-color: #00aaff;
+        }
+
+        .mavlink-btn.connected {
+            background: #006699;
+            border-color: #00aaff;
+        }
+
+        .mavlink-btn.disconnected {
+            background: #660033;
+            border-color: #ff3366;
+        }
+
         /* STATUS PANEL */
         .status-panel {
             background: #1a1a1a;
@@ -216,14 +257,8 @@
 
         .status-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
-        }
-
-        @media (max-width: 768px) {
-            .status-grid {
-                grid-template-columns: 1fr;
-            }
         }
 
         .status-item {
@@ -233,12 +268,12 @@
             border-left: 4px solid #00ff00;
         }
 
-        .status-item.error {
-            border-left-color: #ff3333;
+        .status-item.mavlink {
+            border-left-color: #00aaff;
         }
 
-        .status-item.warning {
-            border-left-color: #ffaa00;
+        .status-item.error {
+            border-left-color: #ff3333;
         }
 
         .status-title {
@@ -291,6 +326,49 @@
             }
         }
 
+        /* TELEMETRY PANEL */
+        .telemetry-panel {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #333;
+            margin-top: 20px;
+            grid-column: 1 / -1;
+        }
+
+        .telemetry-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .telemetry-card {
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #00aaff;
+        }
+
+        .telemetry-title {
+            font-size: 0.9rem;
+            color: #88a;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .telemetry-kv {
+            font-family: monospace;
+            font-size: 0.95rem;
+            color: #ddd;
+            line-height: 1.5;
+        }
+
+        .telemetry-kv b {
+            color: #fff;
+        }
+
         /* COMMAND LOG */
         .command-log {
             margin-top: 20px;
@@ -299,6 +377,7 @@
             padding: 15px;
             max-height: 200px;
             overflow-y: auto;
+            grid-column: 1 / -1;
         }
 
         .log-title {
@@ -336,6 +415,11 @@
         .log-item.serial {
             background: rgba(0, 170, 255, 0.1);
             border-left-color: #00aaff;
+        }
+
+        .log-item.mavlink {
+            background: rgba(170, 0, 255, 0.1);
+            border-left-color: #aa00ff;
         }
 
         .log-time {
@@ -382,8 +466,8 @@
     <div class="container">
         <!-- HEADER -->
         <div class="header">
-            <h1>🤖 Robot Kontrol Paneli</h1>
-            <div class="subtitle">Gerçek zamanlı video akışı ve Arduino kontrolü</div>
+            <h1>🤖 Robot Kontrol Paneli - Tam Sistem</h1>
+            <div class="subtitle">Arduino Kontrol + Pixhawk Telemetri + Canlı Kamera</div>
         </div>
 
         <!-- VIDEO SECTION -->
@@ -400,7 +484,7 @@
 
         <!-- CONTROLS SECTION -->
         <div class="controls-section">
-            <h2>🎮 Kontroller</h2>
+            <h2>🎮 Robot Kontrolleri</h2>
 
             <div class="control-grid">
                 <!-- İLERİ SOL -->
@@ -494,7 +578,7 @@
 
         <!-- SERIAL CONTROL PANEL -->
         <div class="serial-panel">
-            <h2>🔌 Serial Port Kontrol</h2>
+            <h2>🔌 Arduino Serial Kontrol</h2>
             <div class="serial-controls">
                 <button class="serial-btn" onclick="checkSerialStatus()" id="serialStatusBtn">
                     Durumu Kontrol Et
@@ -510,8 +594,29 @@
                 </button>
             </div>
             <div id="serialInfo">
-                <p>Serial durumu: <span id="serialState">Yükleniyor...</span></p>
+                <p>Arduino durumu: <span id="serialState">Yükleniyor...</span></p>
                 <p>Port: <span id="serialPort">-</span></p>
+            </div>
+        </div>
+
+        <!-- MAVLINK CONTROL PANEL -->
+        <div class="mavlink-panel">
+            <h2>📡 Pixhawk MAVLink Telemetri</h2>
+            <div class="mavlink-controls">
+                <button class="mavlink-btn" onclick="connectMAVLink()" id="mavlinkConnectBtn">
+                    Pixhawk Bağlan
+                </button>
+                <button class="mavlink-btn" onclick="disconnectMAVLink()" id="mavlinkDisconnectBtn">
+                    Pixhawk Bağlantıyı Kes
+                </button>
+                <button class="mavlink-btn" onclick="checkMAVLinkStatus()" id="mavlinkStatusBtn">
+                    Durumu Kontrol Et
+                </button>
+            </div>
+            <div id="mavlinkInfo">
+                <p>Pixhawk durumu: <span id="mavlinkState">Yükleniyor...</span></p>
+                <p>Cihaz: <span id="mavlinkDevice">/dev/ttyUSB1</span></p>
+                <p>Baud: <span id="mavlinkBaud">115200</span></p>
             </div>
         </div>
 
@@ -538,9 +643,58 @@
                 <div class="status-item">
                     <div class="status-title">
                         <span class="status-dot" id="serialDot"></span>
-                        Serial Bağlantı
+                        Arduino Bağlantı
                     </div>
                     <div class="status-value" id="serialStatusText">Kontrol ediliyor...</div>
+                </div>
+
+                <div class="status-item mavlink">
+                    <div class="status-title">
+                        <span class="status-dot" id="mavDot"></span>
+                        Pixhawk Telemetri
+                    </div>
+                    <div class="status-value" id="mavStatus">Bağlı değil</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TELEMETRY PANEL -->
+        <div class="telemetry-panel">
+            <h2>🛰️ Pixhawk Telemetri Verileri</h2>
+            <div class="telemetry-grid">
+                <div class="telemetry-card">
+                    <div class="telemetry-title">📍 GPS</div>
+                    <div class="telemetry-kv">
+                        <div><b>Lat:</b> <span id="gpsLat">-</span></div>
+                        <div><b>Lon:</b> <span id="gpsLon">-</span></div>
+                        <div><b>Alt (m):</b> <span id="gpsAlt">-</span></div>
+                        <div><b>Speed (m/s):</b> <span id="gpsVel">-</span></div>
+                        <div><b>Fix:</b> <span id="gpsFix">-</span> • <b>Sats:</b> <span id="gpsSats">-</span></div>
+                        <div><b>COG (deg):</b> <span id="gpsCog">-</span></div>
+                    </div>
+                </div>
+
+                <div class="telemetry-card">
+                    <div class="telemetry-title">🧭 Attitude</div>
+                    <div class="telemetry-kv">
+                        <div><b>Roll (rad):</b> <span id="attRoll">-</span></div>
+                        <div><b>Pitch (rad):</b> <span id="attPitch">-</span></div>
+                        <div><b>Yaw (deg):</b> <span id="attYaw">-</span></div>
+                        <div><b>Roll (deg):</b> <span id="attRollDeg">-</span></div>
+                        <div><b>Pitch (deg):</b> <span id="attPitchDeg">-</span></div>
+                    </div>
+                </div>
+
+                <div class="telemetry-card">
+                    <div class="telemetry-title">⚡ Sistem & Batarya</div>
+                    <div class="telemetry-kv">
+                        <div><b>Batarya Voltaj:</b> <span id="batteryVoltage">- V</span></div>
+                        <div><b>Batarya Akım:</b> <span id="batteryCurrent">- A</span></div>
+                        <div><b>Batarya Kalan:</b> <span id="batteryRemaining">- %</span></div>
+                        <div><b>CPU Yükü:</b> <span id="cpuLoad">- %</span></div>
+                        <div><b>Sistem ID:</b> <span id="systemId">-</span></div>
+                        <div><b>Son Güncelleme:</b> <span id="lastUpdate">-</span></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -548,7 +702,7 @@
         <!-- COMMAND LOG -->
         <div class="command-log">
             <div class="log-title">
-                <span>📝 Komut Geçmişi</span>
+                <span>📝 Sistem Log'u</span>
                 <button onclick="clearLog()"
                     style="background: #333; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Temizle</button>
             </div>
@@ -559,8 +713,8 @@
 
         <!-- FOOTER -->
         <div class="footer">
-            <p>Robot Kontrol Paneli v2.0 • Arduino Serial Kontrol • Gerçek zamanlı</p>
-            <p>Komutlar: İleri(w), Sol(a), Sağ(d), Geri(s), Dur(y) → Arduino'ya gönderilir</p>
+            <p>🤖 Robot Kontrol Paneli v4.0 • Arduino Kontrol • Pixhawk Telemetri • Canlı Kamera</p>
+            <p>Arduino: /dev/ttyUSB0 (115200 baud) • Pixhawk: /dev/ttyUSB1 (115200 baud)</p>
         </div>
     </div>
 
@@ -580,7 +734,7 @@
 
         // State
         let lastCommandTime = 0;
-        const MIN_COMMAND_DELAY = 100; // 100ms - Daha akıcı hareket için
+        const MIN_COMMAND_DELAY = 50;
         let commandInterval = null;
         let currentCommand = null;
 
@@ -597,8 +751,51 @@
         const autoConnectBtn = document.getElementById('autoConnectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const testBtn = document.getElementById('testBtn');
+
+        const mavDot = document.getElementById('mavDot');
+        const mavStatus = document.getElementById('mavStatus');
+        const mavlinkState = document.getElementById('mavlinkState');
+        const mavlinkDevice = document.getElementById('mavlinkDevice');
+        const mavlinkBaud = document.getElementById('mavlinkBaud');
+        const mavlinkConnectBtn = document.getElementById('mavlinkConnectBtn');
+        const mavlinkDisconnectBtn = document.getElementById('mavlinkDisconnectBtn');
+        const mavlinkStatusBtn = document.getElementById('mavlinkStatusBtn');
+
         const commandLog = document.getElementById('commandLog');
         const videoTime = document.getElementById('videoTime');
+
+        // Telemetri elementleri
+        const gpsLat = document.getElementById('gpsLat');
+        const gpsLon = document.getElementById('gpsLon');
+        const gpsAlt = document.getElementById('gpsAlt');
+        const gpsVel = document.getElementById('gpsVel');
+        const gpsFix = document.getElementById('gpsFix');
+        const gpsSats = document.getElementById('gpsSats');
+        const gpsCog = document.getElementById('gpsCog');
+
+        const attRoll = document.getElementById('attRoll');
+        const attPitch = document.getElementById('attPitch');
+        const attYaw = document.getElementById('attYaw');
+        const attRollDeg = document.getElementById('attRollDeg');
+        const attPitchDeg = document.getElementById('attPitchDeg');
+
+        const batteryVoltage = document.getElementById('batteryVoltage');
+        const batteryCurrent = document.getElementById('batteryCurrent');
+        const batteryRemaining = document.getElementById('batteryRemaining');
+        const cpuLoad = document.getElementById('cpuLoad');
+        const systemId = document.getElementById('systemId');
+        const lastUpdate = document.getElementById('lastUpdate');
+
+        // Yardımcı fonksiyonlar
+        function _fmt(n, digits = 6) {
+            if (n === null || n === undefined || n === 0) return '-';
+            if (typeof n !== 'number') return String(n);
+            return n.toFixed(digits);
+        }
+
+        function _fmt2(n) { return _fmt(n, 2); }
+        function _fmt3(n) { return _fmt(n, 3); }
+        function _fmt4(n) { return _fmt(n, 4); }
 
         // Zaman güncelleme
         function updateTime() {
@@ -624,12 +821,10 @@
 
             commandLog.appendChild(logItem);
 
-            // Sadece son 20 mesajı tut
-            while (commandLog.children.length > 20) {
+            while (commandLog.children.length > 30) {
                 commandLog.removeChild(commandLog.firstChild);
             }
 
-            // Otomatik scroll
             commandLog.scrollTop = commandLog.scrollHeight;
         }
 
@@ -679,6 +874,23 @@
             }
         }
 
+        // MAVLink durumunu güncelle
+        function updateMAVLinkStatus(connected) {
+            if (connected) {
+                mavDot.className = 'status-dot online';
+                mavStatus.textContent = 'Bağlı';
+                mavlinkState.textContent = 'Bağlı';
+                mavlinkConnectBtn.className = 'mavlink-btn connected';
+                mavlinkDisconnectBtn.disabled = false;
+            } else {
+                mavDot.className = 'status-dot offline';
+                mavStatus.textContent = 'Bağlı değil';
+                mavlinkState.textContent = 'Bağlı değil';
+                mavlinkConnectBtn.className = 'mavlink-btn disconnected';
+                mavlinkDisconnectBtn.disabled = true;
+            }
+        }
+
         // Komut gönderme (tek seferlik)
         function sendSingleCommand(cmd) {
             const now = Date.now();
@@ -693,8 +905,7 @@
                 csrf_token: csrfToken
             });
 
-            // Buton feedback
-            const btn = event.target.closest('.control-btn');
+            const btn = event?.target?.closest('.control-btn');
             if (btn) {
                 btn.style.transform = 'scale(0.95)';
                 setTimeout(() => {
@@ -705,15 +916,9 @@
 
         // Sürekli komut başlatma
         function startCommand(cmd) {
-            // Önceki komutu durdur
             stopCommand();
-
             currentCommand = cmd;
-
-            // İlk komutu hemen gönder
             sendSingleCommand(cmd);
-
-            // Sürekli göndermek için interval başlat (MIN_COMMAND_DELAY kadar bekle)
             commandInterval = setInterval(() => {
                 sendSingleCommand(cmd);
             }, MIN_COMMAND_DELAY);
@@ -727,47 +932,56 @@
             }
 
             if (currentCommand) {
-                // Dur komutu gönder
-                sendSingleCommand('stop');
+                socket.emit('robot_command', {
+                    command: 'stop',
+                    csrf_token: csrfToken
+                });
                 currentCommand = null;
             }
         }
 
         // Klavye kontrolleri
         document.addEventListener('keydown', (e) => {
-            e.preventDefault();
-
             switch (e.key.toLowerCase()) {
                 case 'q':
+                    e.preventDefault();
                     startCommand('forward_left');
                     break;
                 case 'w':
                 case 'arrowup':
+                    e.preventDefault();
                     startCommand('forward');
                     break;
                 case 'e':
+                    e.preventDefault();
                     startCommand('forward_right');
                     break;
                 case 'a':
                 case 'arrowleft':
+                    e.preventDefault();
                     startCommand('left');
                     break;
                 case 'd':
                 case 'arrowright':
+                    e.preventDefault();
                     startCommand('right');
                     break;
                 case 'z':
+                    e.preventDefault();
                     startCommand('backward_left');
                     break;
                 case 's':
                 case 'arrowdown':
+                    e.preventDefault();
                     startCommand('backward');
                     break;
                 case 'c':
+                    e.preventDefault();
                     startCommand('backward_right');
                     break;
                 case ' ':
                 case 'spacebar':
+                    e.preventDefault();
                     stopCommand();
                     break;
             }
@@ -799,22 +1013,28 @@
                 .then(response => response.json())
                 .then(data => {
                     updateSerialStatus(data.connected, data.port);
-                    addLog(`Serial durumu: ${data.connected ? 'Bağlı' : 'Bağlı değil'}`, 'info');
+                    addLog(`Arduino durumu: ${data.connected ? 'Bağlı' : 'Bağlı değil'}`, 'info');
                 })
                 .catch(error => {
-                    addLog(`Serial durumu kontrol hatası: ${error}`, 'error');
+                    addLog(`Arduino durumu kontrol hatası: ${error}`, 'error');
                 });
         }
 
         function autoConnectSerial() {
-            addLog('Serial otomatik bağlanma deneniyor...', 'info');
-            // Bu fonksiyonu server tarafında implement etmek gerekebilir
-            // Şimdilik sadece durum kontrolü yap
-            checkSerialStatus();
+            addLog('Arduino otomatik bağlanma deneniyor...', 'info');
+            fetch('/serial/connect/auto')
+                .then(response => response.json())
+                .then(data => {
+                    addLog(`Arduino: ${data.message}`, data.success ? 'serial' : 'error');
+                    setTimeout(checkSerialStatus, 500);
+                })
+                .catch(error => {
+                    addLog(`Arduino bağlantı hatası: ${error}`, 'error');
+                });
         }
 
         function disconnectSerial() {
-            if (confirm('Serial bağlantısını kesmek istediğinize emin misiniz?')) {
+            if (confirm('Arduino bağlantısını kesmek istediğinize emin misiniz?')) {
                 fetch('/serial/disconnect')
                     .then(response => response.json())
                     .then(data => {
@@ -822,15 +1042,109 @@
                         updateSerialStatus(false, null);
                     })
                     .catch(error => {
-                        addLog(`Serial kesme hatası: ${error}`, 'error');
+                        addLog(`Arduino kesme hatası: ${error}`, 'error');
                     });
             }
         }
 
         function sendTestCommand() {
-            // Test komutu gönder
-            sendSingleCommand('stop');
+            socket.emit('robot_command', {
+                command: 'stop',
+                csrf_token: csrfToken
+            });
             addLog('Test komutu gönderildi', 'serial');
+        }
+
+        // MAVLink fonksiyonları
+        function connectMAVLink() {
+            addLog('Pixhawk bağlanıyor...', 'mavlink');
+            fetch('/mavlink/connect')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addLog(`Pixhawk bağlandı: ${data.device} @ ${data.baud}`, 'mavlink');
+                        updateMAVLinkStatus(true);
+                    } else {
+                        addLog(`Pixhawk bağlantı hatası: ${data.message}`, 'error');
+                        updateMAVLinkStatus(false);
+                    }
+                })
+                .catch(error => {
+                    addLog(`Pixhawk bağlantı hatası: ${error}`, 'error');
+                    updateMAVLinkStatus(false);
+                });
+        }
+
+        function disconnectMAVLink() {
+            if (confirm('Pixhawk bağlantısını kesmek istediğinize emin misiniz?')) {
+                fetch('/mavlink/disconnect')
+                    .then(response => response.json())
+                    .then(data => {
+                        addLog(`Pixhawk: ${data.message}`, 'info');
+                        updateMAVLinkStatus(false);
+                    })
+                    .catch(error => {
+                        addLog(`Pixhawk kesme hatası: ${error}`, 'error');
+                    });
+            }
+        }
+
+        function checkMAVLinkStatus() {
+            fetch('/mavlink/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateMAVLinkStatus(data.connected);
+                    addLog(`Pixhawk durumu: ${data.connected ? 'Bağlı' : 'Bağlı değil'} (${data.connection_status})`, 'mavlink');
+                })
+                .catch(error => {
+                    addLog(`Pixhawk durumu kontrol hatası: ${error}`, 'error');
+                });
+        }
+
+        // Telemetri verilerini güncelle
+        function updateTelemetry(t) {
+            if (!t) return;
+
+            // GPS
+            if (t.gps) {
+                gpsLat.textContent = _fmt(t.gps.lat, 6);
+                gpsLon.textContent = _fmt(t.gps.lon, 6);
+                gpsAlt.textContent = _fmt2(t.gps.alt_m) + ' m';
+                gpsVel.textContent = _fmt2(t.gps.vel_m_s) + ' m/s';
+                gpsFix.textContent = t.gps.fix_type || '0';
+                gpsSats.textContent = t.gps.satellites_visible || '0';
+                gpsCog.textContent = _fmt2(t.gps.cog_deg) + '°';
+            }
+
+            // Attitude
+            if (t.attitude) {
+                attRoll.textContent = _fmt3(t.attitude.roll_rad);
+                attPitch.textContent = _fmt3(t.attitude.pitch_rad);
+                attYaw.textContent = _fmt2(t.attitude.yaw_deg);
+                attRollDeg.textContent = _fmt2(t.attitude.roll_deg) + '°';
+                attPitchDeg.textContent = _fmt2(t.attitude.pitch_deg) + '°';
+            }
+
+            // Battery
+            if (t.battery) {
+                batteryVoltage.textContent = _fmt2(t.battery.voltage) + ' V';
+                batteryCurrent.textContent = _fmt2(t.battery.current) + ' A';
+                batteryRemaining.textContent = (t.battery.remaining || 0) + ' %';
+            }
+
+            // System
+            if (t.system) {
+                cpuLoad.textContent = _fmt2(t.system.load) + ' %';
+                if (t.system.id > 0) {
+                    systemId.textContent = t.system.id;
+                }
+            }
+
+            // Timestamp
+            if (t.timestamp) {
+                const date = new Date(t.timestamp * 1000);
+                lastUpdate.textContent = date.toLocaleTimeString();
+            }
         }
 
         // Socket.io events
@@ -839,15 +1153,14 @@
             updateStatus('ws', 'online', 'Bağlı');
             addLog('WebSocket bağlantısı kuruldu', 'info');
 
-            // Sistem durumunu kontrol et
             checkSystemStatus();
+            checkMAVLinkStatus();
         });
 
         socket.on('disconnect', () => {
             console.log('❌ WebSocket bağlantısı kesildi');
             updateStatus('ws', 'offline', 'Bağlantı kesildi');
             addLog('WebSocket bağlantısı kesildi', 'warning');
-            // Komutları durdur
             stopCommand();
         });
 
@@ -861,19 +1174,28 @@
 
         socket.on('serial_connection', (data) => {
             updateSerialStatus(data.connected, data.port);
-            addLog(`Serial: ${data.message}`, 'serial');
+            addLog(`Arduino: ${data.message}`, 'serial');
         });
 
         socket.on('serial_status', (data) => {
             if (data.status === 'sent') {
-                addLog(`Serial komut: ${data.command} → '${data.char}'`, 'serial');
+                addLog(`Arduino komut: ${data.command} → '${data.char}'`, 'serial');
             } else if (data.status === 'error') {
-                addLog(`Serial hatası: ${data.message}`, 'error');
+                addLog(`Arduino hatası: ${data.message}`, 'error');
             }
         });
 
         socket.on('serial_response', (data) => {
             addLog(`Arduino: ${data.message}`, 'serial');
+        });
+
+        socket.on('mavlink_status', (data) => {
+            updateMAVLinkStatus(data.connected);
+            addLog(`Pixhawk: ${data.message}`, 'mavlink');
+        });
+
+        socket.on('mavlink_telemetry', (data) => {
+            updateTelemetry(data);
         });
 
         socket.on('error', (data) => {
@@ -898,6 +1220,13 @@
                     // Serial durumu
                     updateSerialStatus(data.serial, data.serial_port);
 
+                    // MAVLink durumu
+                    if (data.mavlink) {
+                        updateMAVLinkStatus(true);
+                    } else {
+                        updateMAVLinkStatus(false);
+                    }
+
                     addLog('Sistem durumu güncellendi', 'info');
                 })
                 .catch(error => {
@@ -918,8 +1247,8 @@
         }
 
         // Periyodik kontroller
-        setInterval(healthCheck, 30000); // 30 saniyede bir
-        setInterval(checkSystemStatus, 10000); // 10 saniyede bir sistem durumu
+        setInterval(healthCheck, 30000);
+        setInterval(checkSystemStatus, 15000);
 
         // İlk kontroller
         setTimeout(() => {
@@ -940,9 +1269,15 @@
             addLog('Video akışı başladı', 'info');
         };
 
-        // İlk yüklemede serial durumunu kontrol et
+        // İlk yüklemede durumları kontrol et
         window.onload = function () {
-            setTimeout(checkSystemStatus, 1000);
+            setTimeout(() => {
+                checkSystemStatus();
+                checkMAVLinkStatus();
+            }, 1000);
+
+            // Sayfa başladığında Pixhawk'ı bağlamayı dene
+            setTimeout(connectMAVLink, 2000);
         };
 
         // Sayfa kapatılmadan önce komutları durdur
