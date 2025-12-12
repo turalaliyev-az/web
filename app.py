@@ -188,7 +188,7 @@ class SerialManager:
                     except:
                         pass
                 
-                time.sleep(0.01)  # CPU'yu çok kullanmamak için
+                time.sleep(0.005)  # Daha hızlı işleme için
                 
             except Exception as e:
                 print(f"Serial worker hatası: {e}")
@@ -612,7 +612,7 @@ if __name__ == '__main__':
         socketio.run(
             app,
             host='0.0.0.0',
-            port=9966,
+            port=7000,
             debug=False,
             use_reloader=False,
             allow_unsafe_werkzeug=True
